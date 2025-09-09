@@ -1,0 +1,186 @@
+/* ------------------- Layout Principal ------------------- */
+.container {
+    max-width: 1200px;  /* largura fixa mais elegante */
+    margin: 0 auto;
+}
+
+/* ------------------- Cabeçalho ------------------- */
+.header-custom {
+    background: linear-gradient(90deg, #003d80, #0056b3);
+    color: white;
+    padding: 40px 0 30px;
+    text-align: center;
+}
+
+.header-custom h1 {
+    font-weight: 700;
+    font-size: 2.4rem;
+    margin-bottom: 10px;
+}
+
+.logo-header {
+    height: 65px;
+    margin-top: 10px;
+}
+
+/* ------------------- Painel Resumo ------------------- */
+#painelResumo {
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    margin-bottom: 25px;
+}
+
+.resumo-card {
+    border-radius: 14px;
+    padding: 20px;
+    color: #fff;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    transition: transform 0.3s, box-shadow 0.3s;
+    flex: 1 1 220px;
+    text-align: center;
+}
+
+.resumo-card h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.resumo-card p {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.resumo-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.25);
+}
+
+/* ------------------- Cards de Regiões ------------------- */
+.card-regiao {
+    text-align: center;
+    font-weight: 600;
+    padding: 18px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(20px);
+    color: #fff;
+    user-select: none;
+}
+
+.card-regiao.fade-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.card-regiao:hover {
+    transform: scale(1.07);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.25);
+}
+
+/* ------------------- Mapa ------------------- */
+#map {
+    height: 550px;
+    margin-top: 20px;
+    border: none;
+    border-radius: 14px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+}
+
+/* ------------------- Rodapé ------------------- */
+footer {
+    background-color: #003d80;
+    color: #fff;
+    text-align: center;
+    padding: 20px 0;
+    margin-top: 40px;
+    font-size: 0.9rem;
+}
+
+/* ------------------- Cards pulsantes ------------------- */
+@keyframes pulsarAmarelo {
+    0% { background: linear-gradient(90deg,#ffc107 0%,#ffeb3b 100%);}
+    50% { background: linear-gradient(90deg,#ffeb3b 0%,#ffc107 100%);}
+    100% { background: linear-gradient(90deg,#ffc107 0%,#ffeb3b 100%);}
+}
+
+@keyframes pulsarVermelho {
+    0% { background: linear-gradient(90deg,#dc3545 0%,#ff4d4d 100%);}
+    50% { background: linear-gradient(90deg,#ff4d4d 0%,#dc3545 100%);}
+    100% { background: linear-gradient(90deg,#dc3545 0%,#ff4d4d 100%);}
+}
+
+.card-regiao.pulsar-amarelo { animation: pulsarAmarelo 1s infinite; color:#000; }
+.card-regiao.pulsar-vermelho { animation: pulsarVermelho 1s infinite; color:#fff; }
+
+/* Cards verdes normais */
+.card-regiao.card-verde { background-color: #28a745; color: #fff; }
+
+/* Aviso de observação */
+.aviso-obs {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 18px;
+    display: none;
+}
+
+/* Sombra extra para observação */
+.card-regiao.com-obs { box-shadow: 0 0 15px rgba(255,193,7,0.7); }
+
+/* ------------------- Formulário ------------------- */
+form select, form button {
+    border-radius: 8px;
+}
+
+button.btn-primary {
+    background-color: #0d6efd;
+    border: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+button.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+button.btn-secondary {
+    background-color: #6c757d;
+    border: none;
+}
+
+button.btn-secondary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+/* ------------------- Mapa ------------------- */
+#map {
+    height: 600px;
+    margin-top: 20px;
+    border: 2px solid #333;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* ------------------- Modal ------------------- */
+.modal-content {
+    border-radius: 12px;
+}
+
+.modal-header, .modal-footer {
+    border: none;
+}
+
+.modal-body textarea {
+    border-radius: 8px;
+    resize: none;
+}
