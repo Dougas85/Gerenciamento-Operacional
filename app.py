@@ -120,14 +120,17 @@ def atualizar():
 
     # 🔹 Bloqueio: só 1 atualização por dia
     cur.execute("""
-        SELECT 1 FROM lado_atualizacao 
+        SELECT lado FROM lado_atualizacao 
         WHERE DATE(data_registro) = %s
         LIMIT 1
     """, (hoje,))
-    if cur.fetchone():
+    registro = cur.fetchone()
+    if registro:
         cur.close()
         conn.close()
-        return jsonify({"erro": "Já houve atualização hoje"}), 403
+        return jsonify({
+            "erro": f"O lado {registro['lado']} já foi atualizado hoje. Não é possível registrar novamente."
+        }), 403
 
     # 🔹 Atualiza status das regiões
     for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
@@ -154,6 +157,7 @@ def atualizar():
     conn.close()
 
     return jsonify({"sucesso": f"Distribuição registrada para lado {lado}."}), 200
+
 
 @app.route("/salvar_obs", methods=["POST"])
 def salvar_observacao():
@@ -186,6 +190,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
