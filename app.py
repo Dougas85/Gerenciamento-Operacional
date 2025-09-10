@@ -1,9 +1,17 @@
 from flask import Flask, render_template, request, jsonify
 from datetime import datetime
-import json, os
+import psycopg2
+import psycopg2.extras
 
 app = Flask(__name__)
 
+# -------------------- Configuração Supabase --------------------
+DB_URL = "postgresql://postgres.guyisltwbrcnwpbkoabn:analivia2307@aws-1-sa-east-1.pooler.supabase.com:6543/postgres"
+
+def get_conn():
+    return psycopg2.connect(DB_URL)
+
+# -------------------- Dados das regiões --------------------
 regioes = {
     "601A": {"coords": [-22.1227, -51.3855]}, "602A": {"coords": [-22.1276, -51.3886]},
     "603A": {"coords": [-22.1367, -51.3886]}, "604A": {"coords": [-22.1302, -51.3962]},
@@ -27,31 +35,44 @@ regioes = {
 status_regioes = {regiao: "verde" for regiao in regioes.keys()}
 observacoes = {regiao: "" for regiao in regioes.keys()}
 
-data_atual = datetime.now().strftime("%d/%m/%Y")
+# -------------------- Carregar dados do banco --------------------
+def carregar_dados():
+    global observacoes, status_regioes
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
+    # Observações
+    cur.execute("SELECT regiao, observacao FROM regioes_obs ORDER BY data_registro DESC")
+    for row in cur.fetchall():
+        observacoes[row["regiao"]] = row["observacao"]
+
+    # Não entregas
+    cur.execute("SELECT regiao, data_nao_entrega FROM regioes_nao_entrega")
+    for row in cur.fetchall():
+        status_regioes[row["regiao"]] = "vermelho"
+
+    cur.close()
+    conn.close()
+
+carregar_dados()
+
+# -------------------- Rotas --------------------
 @app.route("/")
 def index():
     lado = request.args.get("lado", "A")
-    # Regiões que serão mostradas como CARDS (apenas do lado selecionado)
     regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
-    # dias sem entrega (mantive sua lógica)
     dias_sem_entrega = [r for r, s in status_regioes.items() if s == "vermelho"]
 
-    # Renderiza passando:
-    # - regioes: SOMENTE as do lado (para os cards)
-    # - todas_regioes: TODAS as regioes (para desenhar todos os marcadores no mapa)
-    # - status: o dicionário com o status GLOBAL de todas as regioes
     return render_template(
         "index.html",
         regioes=regioes_filtradas,
         todas_regioes=regioes,
         status=status_regioes,
         observacoes=observacoes,
-        data=data_atual,
+        data=datetime.now().strftime("%d/%m/%Y"),
         dias_sem_entrega=dias_sem_entrega,
         lado=lado
     )
-
 
 @app.route("/", methods=["POST"])
 def atualizar():
@@ -66,6 +87,16 @@ def atualizar():
                 status_regioes[regiao] = "amarelo"
             elif status_regioes[regiao] == "amarelo":
                 status_regioes[regiao] = "vermelho"
+                # Salva no banco a data de não entrega
+                conn = get_conn()
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
+                    (regiao, datetime.now().date(), "Sem entrega registrada")
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
 
     return ("", 204)
 
@@ -74,7 +105,20 @@ def salvar_observacao():
     data = request.get_json()
     regiao = data.get("regiao")
     texto = data.get("obs", "")
+
     observacoes[regiao] = texto
+
+    # Salvar no banco
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO regioes_obs (regiao, observacao) VALUES (%s, %s)",
+        (regiao, texto)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
     return jsonify({"sucess": True, "regiao": regiao, "observacao": texto})
 
 @app.route("/dados")
@@ -84,6 +128,6 @@ def dados():
         "observacoes": observacoes
     })
 
-
+# -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
