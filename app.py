@@ -6,7 +6,7 @@ import psycopg2.extras
 app = Flask(__name__)
 
 # -------------------- Configuração Supabase --------------------
-DB_URL = "postgresql://postgres.guyisltwbrcnwpbkoabn:analivia2307@aws-1-sa-east-1.pooler.supabase.com:6543/postgres"
+DB_URL = "postgresql://postgres.guyisltwbrcnwpbkoabn:lara1503@aws-1-sa-east-1.pooler.supabase.com:6543/postgres"
 
 def get_conn():
     return psycopg2.connect(DB_URL)
@@ -32,8 +32,11 @@ regioes = {
     "616B": {"coords": [-22.0834, -51.3811]}, "617B": {"coords": [-22.0709, -51.3792]}
 }
 
+# -------------------- Inicialização de status e observações --------------------
 status_regioes = {regiao: "verde" for regiao in regioes.keys()}
 observacoes = {regiao: "" for regiao in regioes.keys()}
+
+data_atual = datetime.now().strftime("%d/%m/%Y")
 
 # -------------------- Carregar dados do banco --------------------
 def carregar_dados():
@@ -46,10 +49,16 @@ def carregar_dados():
     for row in cur.fetchall():
         observacoes[row["regiao"]] = row["observacao"]
 
-    # Não entregas
-    cur.execute("SELECT regiao, data_nao_entrega FROM regioes_nao_entrega")
-    for row in cur.fetchall():
-        status_regioes[row["regiao"]] = "vermelho"
+    # Status de não entrega
+    cur.execute("SELECT regiao, data_nao_entrega FROM regioes_nao_entrega ORDER BY data_nao_entrega")
+    rows = cur.fetchall()
+    # Mantendo a lógica: verde → amarelo → vermelho
+    for row in rows:
+        regiao = row["regiao"]
+        if status_regioes.get(regiao) == "verde":
+            status_regioes[regiao] = "amarelo"
+        elif status_regioes.get(regiao) == "amarelo":
+            status_regioes[regiao] = "vermelho"
 
     cur.close()
     conn.close()
@@ -69,7 +78,7 @@ def index():
         todas_regioes=regioes,
         status=status_regioes,
         observacoes=observacoes,
-        data=datetime.now().strftime("%d/%m/%Y"),
+        data=data_atual,
         dias_sem_entrega=dias_sem_entrega,
         lado=lado
     )
@@ -79,6 +88,9 @@ def atualizar():
     lado = request.form.get("lado")
     atendidas = request.form.getlist("atendidas")
 
+    conn = get_conn()
+    cur = conn.cursor()
+
     for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
         if regiao in atendidas:
             status_regioes[regiao] = "verde"
@@ -87,16 +99,15 @@ def atualizar():
                 status_regioes[regiao] = "amarelo"
             elif status_regioes[regiao] == "amarelo":
                 status_regioes[regiao] = "vermelho"
-                # Salva no banco a data de não entrega
-                conn = get_conn()
-                cur = conn.cursor()
+                # Salvar no banco a data de não entrega
                 cur.execute(
                     "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
                     (regiao, datetime.now().date(), "Sem entrega registrada")
                 )
-                conn.commit()
-                cur.close()
-                conn.close()
+
+    conn.commit()
+    cur.close()
+    conn.close()
 
     return ("", 204)
 
@@ -119,7 +130,7 @@ def salvar_observacao():
     cur.close()
     conn.close()
 
-    return jsonify({"sucess": True, "regiao": regiao, "observacao": texto})
+    return jsonify({"success": True, "regiao": regiao, "observacao": texto})
 
 @app.route("/dados")
 def dados():
