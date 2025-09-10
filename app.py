@@ -35,29 +35,29 @@ regioes = {
 status_regioes = {regiao: "verde" for regiao in regioes.keys()}
 observacoes = {regiao: "" for regiao in regioes.keys()}
 
-# -------------------- Funções de banco --------------------
+# -------------------- Carregar dados do banco --------------------
 def carregar_dados():
-    """Carrega observações e status de entregas anteriores."""
     global observacoes, status_regioes
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # Carrega observações
+    # Observações
     cur.execute("SELECT regiao, observacao FROM regioes_obs ORDER BY data_registro DESC")
     for row in cur.fetchall():
         observacoes[row["regiao"]] = row["observacao"]
 
-    # Carrega entregas não realizadas (status vermelho)
+    # Não entregas
     cur.execute("SELECT regiao, data_nao_entrega FROM regioes_nao_entrega")
     for row in cur.fetchall():
         status_regioes[row["regiao"]] = "vermelho"
 
-    # Carrega último lado atualizado
+    # Último lado atualizado
     cur.execute("SELECT lado, data_registro FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
-    row = cur.fetchone()
-    if row:
-        app.config["ULTIMO_LADO"] = row[0]
-        app.config["DATA_LADO"] = row[1]
+    ultimo = cur.fetchone()
+    if ultimo:
+        app.config["ULTIMO_LADO"] = ultimo["lado"]
+        app.config["DATA_LADO"] = ultimo["data_registro"]
     else:
         app.config["ULTIMO_LADO"] = None
         app.config["DATA_LADO"] = None
@@ -74,13 +74,6 @@ def index():
     regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
     dias_sem_entrega = [r for r, s in status_regioes.items() if s == "vermelho"]
 
-    # Bloqueio de atualização
-    hoje = date.today()
-    if app.config.get("DATA_LADO") == hoje:
-        lado_bloqueado = True
-    else:
-        lado_bloqueado = False
-
     return render_template(
         "index.html",
         regioes=regioes_filtradas,
@@ -89,8 +82,7 @@ def index():
         observacoes=observacoes,
         data=datetime.now().strftime("%d/%m/%Y"),
         dias_sem_entrega=dias_sem_entrega,
-        lado=lado,
-        lado_bloqueado=lado_bloqueado
+        lado=lado
     )
 
 @app.route("/", methods=["POST"])
@@ -99,9 +91,14 @@ def atualizar():
     atendidas = request.form.getlist("atendidas")
     hoje = date.today()
 
-    # Bloqueio por alternância de lado
+    # Bloqueio: apenas uma atualização por dia
     if app.config.get("DATA_LADO") == hoje:
         return jsonify({"erro": "Atualização já realizada hoje"}), 403
+
+    # Bloqueio de alternância de lado
+    ultimo_lado = app.config.get("ULTIMO_LADO")
+    if ultimo_lado and ultimo_lado == lado:
+        return jsonify({"erro": f"Hoje não é permitido atualizar o lado {lado}"}), 403
 
     # Atualiza status das regiões
     for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
@@ -134,7 +131,7 @@ def atualizar():
     cur.close()
     conn.close()
 
-    # Atualiza configuração
+    # Atualiza configuração do app
     app.config["ULTIMO_LADO"] = lado
     app.config["DATA_LADO"] = hoje
 
@@ -159,7 +156,7 @@ def salvar_observacao():
     cur.close()
     conn.close()
 
-    return jsonify({"success": True, "regiao": regiao, "observacao": texto})
+    return jsonify({"sucess": True, "regiao": regiao, "observacao": texto})
 
 @app.route("/dados")
 def dados():
@@ -171,4 +168,3 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
-
