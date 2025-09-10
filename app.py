@@ -91,14 +91,19 @@ def atualizar():
     atendidas = request.form.getlist("atendidas")
     hoje = date.today()
 
-    # Bloqueio: apenas uma atualização por dia
-    if app.config.get("DATA_LADO") == hoje:
-        return jsonify({"erro": "Atualização já realizada hoje"}), 403
+    conn = get_conn()
+    cur = conn.cursor()
 
-    # Bloqueio de alternância de lado
-    ultimo_lado = app.config.get("ULTIMO_LADO")
-    if ultimo_lado and ultimo_lado == lado:
-        return jsonify({"erro": f"Hoje não é permitido atualizar o lado {lado}"}), 403
+    # 🔹 Verifica se já houve atualização para o lado no dia de hoje
+    cur.execute("""
+        SELECT 1 FROM lado_atualizacao 
+        WHERE data_registro = %s
+        LIMIT 1
+    """, (hoje,))
+    if cur.fetchone():
+        cur.close()
+        conn.close()
+        return jsonify({"erro": "Atualização já realizada hoje"}), 403
 
     # Atualiza status das regiões
     for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
@@ -110,32 +115,23 @@ def atualizar():
             elif status_regioes[regiao] == "amarelo":
                 status_regioes[regiao] = "vermelho"
                 # Salva no banco a data de não entrega
-                conn = get_conn()
-                cur = conn.cursor()
                 cur.execute(
                     "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
                     (regiao, hoje, "Sem entrega registrada")
                 )
-                conn.commit()
-                cur.close()
-                conn.close()
 
-    # Salva lado atualizado do dia
-    conn = get_conn()
-    cur = conn.cursor()
+    # 🔹 Salva lado atualizado do dia
     cur.execute(
         "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, %s)",
         (lado, hoje)
     )
+
     conn.commit()
     cur.close()
     conn.close()
 
-    # Atualiza configuração do app
-    app.config["ULTIMO_LADO"] = lado
-    app.config["DATA_LADO"] = hoje
-
     return ("", 204)
+
 
 @app.route("/salvar_obs", methods=["POST"])
 def salvar_observacao():
@@ -168,3 +164,4 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
