@@ -40,6 +40,21 @@
     </p>
     {% endif %}
 
+    {% if mensagem %}
+    <div class="alert alert-success text-center fw-semibold">
+        {{ mensagem }}
+    </div>
+    {% endif %}
+    <form method="POST" id="form-regioes">
+        <div class="mb-3 text-center">
+            <label for="lado" class="form-label fw-semibold">Selecione o lado:</label>
+            <select class="form-select w-auto d-inline-block" id="lado" name="lado"
+                    {% if lado_bloqueado %} disabled {% endif %}>
+                <option value="A" {% if lado_sugerido == "A" %}selected{% endif %}>Lado A</option>
+                <option value="B" {% if lado_sugerido == "B" %}selected{% endif %}>Lado B</option>
+            </select>
+        </div>
+
     <!-- Cards das Regiões -->
     <form method="POST" id="form-regioes">
         <input type="hidden" name="lado" value="{{ lado }}">
@@ -348,5 +363,6 @@ function sugerirAuxilio(regiaoVermelha) {
 </script>
 </body>
 </html>
+
 
 
