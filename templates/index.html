@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <title>Controle da Distribuição</title>
@@ -7,8 +9,6 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-
-    <!-- Fonte moderna -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -29,23 +29,27 @@
         <!-- Cards do resumo serão inseridos via JS -->
     </div>
 
-    <!-- Seleção do lado -->
-    <form method="GET" class="mb-4 d-flex align-items-center gap-2 justify-content-center">
-        <label class="form-label mb-0 fw-semibold">Lado do dia:</label>
-        <select name="lado" class="form-select w-auto" onchange="this.form.submit()">
-            <option value="A" {% if lado == 'A' %}selected{% endif %}>A</option>
-            <option value="B" {% if lado == 'B' %}selected{% endif %}>B</option>
-        </select>
-    </form>
+    <!-- Mensagem sobre o lado do dia -->
+    {% if lado_bloqueado %}
+    <p class="text-danger text-center fw-semibold">
+        As entregas do lado {{ lado }} já foram atualizadas hoje. Você só pode alterar observações.
+    </p>
+    {% else %}
+    <p class="text-success text-center fw-semibold">
+        Atualize as entregas do lado {{ lado }} hoje.
+    </p>
+    {% endif %}
 
     <!-- Cards das Regiões -->
     <form method="POST" id="form-regioes">
         <input type="hidden" name="lado" value="{{ lado }}">
         <div class="d-flex justify-content-between mb-3">
-            <button type="button" class="btn btn-outline-secondary" onclick="selecionarTodos()">
+            <button type="button" class="btn btn-outline-secondary" onclick="selecionarTodos()"
+                    {% if lado_bloqueado %} disabled {% endif %}>
                 <i class="bi bi-check2-square"></i> Selecionar Todos
             </button>
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary"
+                    {% if lado_bloqueado %} disabled {% endif %}>
                 <i class="bi bi-arrow-repeat"></i> Atualizar
             </button>
         </div>
@@ -55,7 +59,8 @@
             <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                 <label class="card card-regiao shadow-sm p-2 text-center fw-semibold" data-regiao="{{ regiao }}">
                     <span class="aviso-obs" title="Observação">⚠️</span>
-                    <input type="checkbox" class="form-check-input me-1" name="atendidas" value="{{ regiao }}">
+                    <input type="checkbox" class="form-check-input me-1" name="atendidas" value="{{ regiao }}"
+                           {% if lado_bloqueado %} disabled {% endif %}>
                     {{ regiao }}
                 </label>
             </div>
@@ -343,3 +348,4 @@ function sugerirAuxilio(regiaoVermelha) {
 </script>
 </body>
 </html>
+
