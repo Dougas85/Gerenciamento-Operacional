@@ -1,12 +1,12 @@
 from flask import Flask, render_template, request, jsonify
-from datetime import datetime
+from datetime import datetime, date
 import psycopg2
 import psycopg2.extras
 
 app = Flask(__name__)
 
 # -------------------- Configuração Supabase --------------------
-DB_URL = "postgresql://postgres.guyisltwbrcnwpbkoabn:lara1503@aws-1-sa-east-1.pooler.supabase.com:6543/postgres"
+DB_URL = "postgresql://postgres.guyisltwbrcnwpbkoabn:analivia2307@aws-1-sa-east-1.pooler.supabase.com:6543/postgres"
 
 def get_conn():
     return psycopg2.connect(DB_URL)
@@ -32,15 +32,14 @@ regioes = {
     "616B": {"coords": [-22.0834, -51.3811]}, "617B": {"coords": [-22.0709, -51.3792]}
 }
 
-# -------------------- Inicialização de status e observações --------------------
 status_regioes = {regiao: "verde" for regiao in regioes.keys()}
 observacoes = {regiao: "" for regiao in regioes.keys()}
-
-data_atual = datetime.now().strftime("%d/%m/%Y")
+lado_hoje = None
+data_ultima_atualizacao = None
 
 # -------------------- Carregar dados do banco --------------------
 def carregar_dados():
-    global observacoes, status_regioes
+    global observacoes, status_regioes, lado_hoje, data_ultima_atualizacao
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
@@ -49,49 +48,40 @@ def carregar_dados():
     for row in cur.fetchall():
         observacoes[row["regiao"]] = row["observacao"]
 
-    # Status de não entrega
-    cur.execute("SELECT regiao, data_nao_entrega FROM regioes_nao_entrega ORDER BY data_nao_entrega")
+    # Não entregas
+    cur.execute("SELECT regiao, data_nao_entrega, lado FROM regioes_nao_entrega ORDER BY data_nao_entrega DESC")
     rows = cur.fetchall()
-    # Mantendo a lógica: verde → amarelo → vermelho
-    for row in rows:
-        regiao = row["regiao"]
-        if status_regioes.get(regiao) == "verde":
-            status_regioes[regiao] = "amarelo"
-        elif status_regioes.get(regiao) == "amarelo":
-            status_regioes[regiao] = "vermelho"
+    if rows:
+        ultima = rows[0]
+        data_ultima_atualizacao = ultima["data_nao_entrega"]
+        lado_hoje = ultima["lado"]
+        for row in rows:
+            status_regioes[row["regiao"]] = "vermelho"
 
     cur.close()
     conn.close()
-    
+
 carregar_dados()
-
-def lado_ja_atualizado(lado):
-    conn = get_conn()
-    cur = conn.cursor()
-    hoje = datetime.now().date()
-    cur.execute("SELECT 1 FROM lado_atualizacao WHERE lado=%s AND data_registro=%s", (lado, hoje))
-    existe = cur.fetchone() is not None
-    cur.close()
-    conn.close()
-    return existe
-
-def registrar_lado_atualizado(lado):
-    conn = get_conn()
-    cur = conn.cursor()
-    hoje = datetime.now().date()
-    cur.execute("INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, %s) ON CONFLICT (data_registro) DO NOTHING", (lado, hoje))
-    conn.commit()
-    cur.close()
-    conn.close()
-
 
 # -------------------- Rotas --------------------
 @app.route("/")
 def index():
-    lado = request.args.get("lado", "A")
+    lado = request.args.get("lado", None)
+    hoje = date.today()
+    lado_bloqueado = False
+
+    # Alternância automática do lado
+    global lado_hoje, data_ultima_atualizacao
+    if data_ultima_atualizacao == hoje:
+        lado = lado_hoje
+        lado_bloqueado = True
+    else:
+        # Se não definido, alterna
+        if not lado:
+            lado = "A" if lado_hoje != "A" else "B"
+
     regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
     dias_sem_entrega = [r for r, s in status_regioes.items() if s == "vermelho"]
-    lado_bloqueado = lado_ja_atualizado(lado)
 
     return render_template(
         "index.html",
@@ -107,14 +97,15 @@ def index():
 
 @app.route("/", methods=["POST"])
 def atualizar():
+    hoje = date.today()
+    global lado_hoje, data_ultima_atualizacao
+
+    # Bloqueio se já atualizou hoje
+    if data_ultima_atualizacao == hoje:
+        return ("", 204)
+
     lado = request.form.get("lado")
     atendidas = request.form.getlist("atendidas")
-
-    if lado_ja_atualizado(lado):
-        return jsonify({"error": f"Lado {lado} já atualizado hoje"}), 400
-
-    conn = get_conn()
-    cur = conn.cursor()
 
     for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
         if regiao in atendidas:
@@ -124,17 +115,21 @@ def atualizar():
                 status_regioes[regiao] = "amarelo"
             elif status_regioes[regiao] == "amarelo":
                 status_regioes[regiao] = "vermelho"
-                # Salvar no banco a data de não entrega
+                # Salva no banco a data de não entrega
+                conn = get_conn()
+                cur = conn.cursor()
                 cur.execute(
-                    "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
-                    (regiao, datetime.now().date(), "Sem entrega registrada")
+                    "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo, lado) VALUES (%s, %s, %s, %s)",
+                    (regiao, hoje, "Sem entrega registrada", lado)
                 )
+                conn.commit()
+                cur.close()
+                conn.close()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    # Atualiza controle de lado e data
+    lado_hoje = lado
+    data_ultima_atualizacao = hoje
 
-    registrar_lado_atualizado(lado)
     return ("", 204)
 
 @app.route("/salvar_obs", methods=["POST"])
@@ -156,7 +151,7 @@ def salvar_observacao():
     cur.close()
     conn.close()
 
-    return jsonify({"success": True, "regiao": regiao, "observacao": texto})
+    return jsonify({"sucess": True, "regiao": regiao, "observacao": texto})
 
 @app.route("/dados")
 def dados():
@@ -165,13 +160,6 @@ def dados():
         "observacoes": observacoes
     })
 
-@app.route("/dados_lado")
-def dados_lado():
-    lado = request.args.get("lado", "A")
-    atualizado = lado_ja_atualizado(lado)
-    return jsonify({"atualizado": atualizado})
-
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
-
