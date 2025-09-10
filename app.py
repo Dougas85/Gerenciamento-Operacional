@@ -34,29 +34,33 @@ regioes = {
 
 status_regioes = {regiao: "verde" for regiao in regioes.keys()}
 observacoes = {regiao: "" for regiao in regioes.keys()}
-lado_hoje = None
-data_ultima_atualizacao = None
 
-# -------------------- Carregar dados do banco --------------------
+# -------------------- Funções de banco --------------------
 def carregar_dados():
-    global observacoes, status_regioes, lado_hoje, data_ultima_atualizacao
+    """Carrega observações e status de entregas anteriores."""
+    global observacoes, status_regioes
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # Observações
+    # Carrega observações
     cur.execute("SELECT regiao, observacao FROM regioes_obs ORDER BY data_registro DESC")
     for row in cur.fetchall():
         observacoes[row["regiao"]] = row["observacao"]
 
-    # Não entregas
-    cur.execute("SELECT regiao, data_nao_entrega, lado FROM regioes_nao_entrega ORDER BY data_nao_entrega DESC")
-    rows = cur.fetchall()
-    if rows:
-        ultima = rows[0]
-        data_ultima_atualizacao = ultima["data_nao_entrega"]
-        lado_hoje = ultima["lado"]
-        for row in rows:
-            status_regioes[row["regiao"]] = "vermelho"
+    # Carrega entregas não realizadas (status vermelho)
+    cur.execute("SELECT regiao, data_nao_entrega FROM regioes_nao_entrega")
+    for row in cur.fetchall():
+        status_regioes[row["regiao"]] = "vermelho"
+
+    # Carrega último lado atualizado
+    cur.execute("SELECT lado, data_registro FROM ultimo_lado ORDER BY data_registro DESC LIMIT 1")
+    row = cur.fetchone()
+    if row:
+        app.config["ULTIMO_LADO"] = row[0]
+        app.config["DATA_LADO"] = row[1]
+    else:
+        app.config["ULTIMO_LADO"] = None
+        app.config["DATA_LADO"] = None
 
     cur.close()
     conn.close()
@@ -66,22 +70,16 @@ carregar_dados()
 # -------------------- Rotas --------------------
 @app.route("/")
 def index():
-    lado = request.args.get("lado", None)
-    hoje = date.today()
-    lado_bloqueado = False
-
-    # Alternância automática do lado
-    global lado_hoje, data_ultima_atualizacao
-    if data_ultima_atualizacao == hoje:
-        lado = lado_hoje
-        lado_bloqueado = True
-    else:
-        # Se não definido, alterna
-        if not lado:
-            lado = "A" if lado_hoje != "A" else "B"
-
+    lado = request.args.get("lado", "A")
     regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
     dias_sem_entrega = [r for r, s in status_regioes.items() if s == "vermelho"]
+
+    # Bloqueio de atualização
+    hoje = date.today()
+    if app.config.get("DATA_LADO") == hoje:
+        lado_bloqueado = True
+    else:
+        lado_bloqueado = False
 
     return render_template(
         "index.html",
@@ -97,16 +95,15 @@ def index():
 
 @app.route("/", methods=["POST"])
 def atualizar():
-    hoje = date.today()
-    global lado_hoje, data_ultima_atualizacao
-
-    # Bloqueio se já atualizou hoje
-    if data_ultima_atualizacao == hoje:
-        return ("", 204)
-
     lado = request.form.get("lado")
     atendidas = request.form.getlist("atendidas")
+    hoje = date.today()
 
+    # Bloqueio por alternância de lado
+    if app.config.get("DATA_LADO") == hoje:
+        return jsonify({"erro": "Atualização já realizada hoje"}), 403
+
+    # Atualiza status das regiões
     for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
         if regiao in atendidas:
             status_regioes[regiao] = "verde"
@@ -119,16 +116,27 @@ def atualizar():
                 conn = get_conn()
                 cur = conn.cursor()
                 cur.execute(
-                    "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo, lado) VALUES (%s, %s, %s, %s)",
-                    (regiao, hoje, "Sem entrega registrada", lado)
+                    "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
+                    (regiao, hoje, "Sem entrega registrada")
                 )
                 conn.commit()
                 cur.close()
                 conn.close()
 
-    # Atualiza controle de lado e data
-    lado_hoje = lado
-    data_ultima_atualizacao = hoje
+    # Salva lado atualizado do dia
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO ultimo_lado (lado, data_registro) VALUES (%s, %s)",
+        (lado, hoje)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    # Atualiza configuração
+    app.config["ULTIMO_LADO"] = lado
+    app.config["DATA_LADO"] = hoje
 
     return ("", 204)
 
@@ -151,7 +159,7 @@ def salvar_observacao():
     cur.close()
     conn.close()
 
-    return jsonify({"sucess": True, "regiao": regiao, "observacao": texto})
+    return jsonify({"success": True, "regiao": regiao, "observacao": texto})
 
 @app.route("/dados")
 def dados():
