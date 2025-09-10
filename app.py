@@ -70,7 +70,30 @@ carregar_dados()
 # -------------------- Rotas --------------------
 @app.route("/")
 def index():
-    lado = request.args.get("lado", "A")
+    # 🔹 Detecta automaticamente o lado do dia
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    cur.execute("""
+        SELECT lado, DATE(data_registro) as dia 
+        FROM lado_atualizacao 
+        ORDER BY data_registro DESC 
+        LIMIT 1
+    """)
+    ultimo = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    hoje = date.today()
+    if ultimo and ultimo["dia"] < hoje:  
+        # Alterna lado automaticamente
+        lado_default = "B" if ultimo["lado"] == "A" else "A"
+    else:
+        # Primeiro acesso ou mesmo dia
+        lado_default = "A"
+
+    lado = request.args.get("lado", lado_default)
+
     regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
     dias_sem_entrega = [r for r, s in status_regioes.items() if s == "vermelho"]
 
@@ -85,6 +108,7 @@ def index():
         lado=lado
     )
 
+
 @app.route("/", methods=["POST"])
 def atualizar():
     lado = request.form.get("lado")
@@ -94,7 +118,7 @@ def atualizar():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # 🔹 1. Verifica se já houve atualização no dia (comparando só a DATA)
+    # 🔹 Bloqueio: só 1 atualização por dia
     cur.execute("""
         SELECT 1 FROM lado_atualizacao 
         WHERE DATE(data_registro) = %s
@@ -103,27 +127,9 @@ def atualizar():
     if cur.fetchone():
         cur.close()
         conn.close()
-        return jsonify({"erro": "Já houve atualização hoje. Tente novamente amanhã."}), 403
+        return jsonify({"erro": "Já houve atualização hoje"}), 403
 
-    # 🔹 2. Recupera o último lado registrado (dia útil anterior)
-    cur.execute("""
-        SELECT lado, DATE(data_registro) as dia 
-        FROM lado_atualizacao 
-        ORDER BY data_registro DESC 
-        LIMIT 1
-    """)
-    ultimo = cur.fetchone()
-    if ultimo:
-        ultimo_lado = ultimo["lado"]
-        ultimo_dia = ultimo["dia"]
-
-        # Se hoje não é o primeiro dia, precisa ser lado oposto
-        if lado == ultimo_lado:
-            cur.close()
-            conn.close()
-            return jsonify({"erro": f"O lado {lado} já foi atendido no último dia útil ({ultimo_dia}). Hoje deve ser o lado oposto."}), 403
-
-    # 🔹 3. Atualiza status das regiões normalmente
+    # 🔹 Atualiza status das regiões
     for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
         if regiao in atendidas:
             status_regioes[regiao] = "verde"
@@ -137,7 +143,7 @@ def atualizar():
                     (regiao, hoje, "Sem entrega registrada")
                 )
 
-    # 🔹 4. Registra lado atualizado do dia
+    # 🔹 Registra lado atualizado do dia
     cur.execute(
         "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())",
         (lado,)
@@ -147,9 +153,7 @@ def atualizar():
     cur.close()
     conn.close()
 
-    return ("", 204)
-
-
+    return jsonify({"sucesso": f"Distribuição registrada para lado {lado}."}), 200
 
 @app.route("/salvar_obs", methods=["POST"])
 def salvar_observacao():
@@ -182,5 +186,6 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
