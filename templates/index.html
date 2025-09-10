@@ -26,7 +26,7 @@
 
     <!-- Painel Resumo -->
     <div id="painelResumo" class="d-flex flex-wrap mb-4 gap-3 justify-content-center">
-        <!-- Cards do resumo serão inseridos via JS -->
+        <!-- Cards do resumo via JS -->
     </div>
 
     <!-- Mensagem sobre o lado do dia -->
@@ -45,6 +45,8 @@
         {{ mensagem }}
     </div>
     {% endif %}
+
+    <!-- Formulário único -->
     <form method="POST" id="form-regioes">
         <div class="mb-3 text-center">
             <label for="lado" class="form-label fw-semibold">Selecione o lado:</label>
@@ -55,9 +57,7 @@
             </select>
         </div>
 
-    <!-- Cards das Regiões -->
-    <form method="POST" id="form-regioes">
-        <input type="hidden" name="lado" value="{{ lado }}">
+        <!-- Botões de ação -->
         <div class="d-flex justify-content-between mb-3">
             <button type="button" class="btn btn-outline-secondary" onclick="selecionarTodos()"
                     {% if lado_bloqueado %} disabled {% endif %}>
@@ -69,6 +69,7 @@
             </button>
         </div>
 
+        <!-- Cards das Regiões -->
         <div class="row g-3">
             {% for regiao in regioes %}
             <div class="col-6 col-sm-4 col-md-3 col-lg-2">
@@ -91,6 +92,7 @@
 <footer>
     <p>&copy; 2025 DFS. Todos os direitos reservados.</p>
 </footer>
+
 
 <!-- Modal Observações -->
 <div class="modal fade" id="obsModal" tabindex="-1" aria-labelledby="obsModalLabel" aria-hidden="true">
@@ -363,6 +365,7 @@ function sugerirAuxilio(regiaoVermelha) {
 </script>
 </body>
 </html>
+
 
 
 
