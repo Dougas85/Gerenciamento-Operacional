@@ -113,7 +113,6 @@
     </div>
   </div>
 </div>
-
 <script>
 /* --------------------- Dados Iniciais --------------------- */
 let regioesCards = {{ regioes | tojson }};
@@ -143,7 +142,7 @@ function atualizarPainelResumo(){
         else if(status[regiao]==="vermelho") vermelhas++;
     }
 
-    const cards=[
+    const cards=[ 
         {titulo:"Total de Regiões", valor:total, classe:"bg-primary"},
         {titulo:"Verdes", valor:verdes, classe:"bg-success"},
         {titulo:"Amarelas", valor:amarelas, classe:"bg-warning text-dark"},
@@ -192,90 +191,98 @@ function pulsarMarcador(key){
     },100);
 }
 
-/* --------------------- Cards das regiões e modal --------------------- */
-document.querySelectorAll(".card-regiao").forEach((card, i) => {
-    let regiao = card.dataset.regiao;
+/* --------------------- Atualizar cards por lado --------------------- */
+function atualizarCardsPorLado(ladoSelecionado){
+    const container = document.querySelector("#form-regioes .row.g-3");
+    container.innerHTML=""; // limpa cards antigos
 
-    // Função que atualiza classes de pulsar e observações no card
-    function atualizarCardPulsar() {
-        card.classList.remove("pulsar-amarelo", "pulsar-vermelho", "card-verde", "com-obs");
-        if (status[regiao] === "amarelo") card.classList.add("pulsar-amarelo");
-        else if (status[regiao] === "vermelho") card.classList.add("pulsar-vermelho");
-        else card.classList.add("card-verde");
+    for(let regiao in todasRegioes){
+        if(!regiao.endsWith(ladoSelecionado)) continue;
 
-        let aviso = card.querySelector(".aviso-obs");
-        if (!aviso) {
-            aviso = document.createElement("span");
-            aviso.classList.add("aviso-obs");
-            aviso.textContent = "⚠️";
-            card.appendChild(aviso);
-        }
-        if (observacoes[regiao] && observacoes[regiao].trim() !== "") {
-            aviso.style.display = "inline";
-            card.classList.add("com-obs");
-        } else {
-            aviso.style.display = "none";
-            card.classList.remove("com-obs");
-        }
+        const div = document.createElement("div");
+        div.className = "col-6 col-sm-4 col-md-3 col-lg-2";
 
-        card.setAttribute("title", `Status: ${status[regiao]}\nObservação: ${observacoes[regiao] || "Nenhuma"}`);
-    }
+        const label = document.createElement("label");
+        label.className = "card card-regiao shadow-sm p-2 text-center fw-semibold";
+        label.dataset.regiao = regiao;
 
-    setTimeout(() => {
-        card.classList.add("fade-in");
-        atualizarCardPulsar();
-    }, i * 100);
+        const input = document.createElement("input");
+        input.type="checkbox";
+        input.className="form-check-input me-1";
+        input.name="atendidas";
+        input.value=regiao;
+        input.disabled = {{ "true" if lado_bloqueado else "false" }};
 
-    // Listener único para abrir modal e mostrar sugestões
-    card.addEventListener("click", function(e) {
-        if (e.target.tagName === "INPUT") return; // ignora checkbox
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(regiao));
 
-        regiaoSelecionada = regiao;
+        // Aviso observação
+        const aviso = document.createElement("span");
+        aviso.className="aviso-obs";
+        aviso.textContent="⚠️";
+        label.appendChild(aviso);
 
-        // Atualiza título do modal
-        document.getElementById("modalRegiao").textContent = regiao;
+        div.appendChild(label);
+        container.appendChild(div);
 
-        // Atualiza textarea com observações existentes
-        document.getElementById("obsTexto").value = observacoes[regiao] || "";
+        // Função para atualizar cor e pulsação do card
+        label.atualizarPulsar = function(){
+            label.classList.remove("pulsar-amarelo","pulsar-vermelho","card-verde","com-obs");
+            if(status[regiao]==="amarelo") label.classList.add("pulsar-amarelo");
+            else if(status[regiao]==="vermelho") label.classList.add("pulsar-vermelho");
+            else label.classList.add("card-verde");
 
-        // Monta sugestão de regiões próximas se estiver amarelo ou vermelho
-        let sugestaoTexto = "";
-        if (status[regiao] === "amarelo" || status[regiao] === "vermelho") {
-            const sugestoes = sugerirAuxilio(regiao);
-            if (sugestoes.length > 0) {
-                sugestaoTexto = "Sugestões de auxílio (mais próximas):\n";
-                sugestoes.forEach(s => {
-                    sugestaoTexto += `- ${s.regiao} (${s.dist.toFixed(2)} km)\n`;
-                });
+            if(observacoes[regiao] && observacoes[regiao].trim()!==""){
+                label.classList.add("com-obs");
+                aviso.style.display="inline";
+            } else {
+                label.classList.remove("com-obs");
+                aviso.style.display="none";
             }
-        }
 
-        // Atualiza div de sugestões sem mexer no textarea
-        document.getElementById("sugestoesAuxilio").textContent = sugestaoTexto;
+            // Atualiza o marcador correspondente
+            if(marcadores[regiao]){
+                let estilo=corMarcador(status[regiao]);
+                marcadores[regiao].setStyle({color:estilo.cor, fillColor:estilo.cor, fillOpacity:estilo.opacidade});
+                if(status[regiao]==="amarelo"||status[regiao]==="vermelho") pulsarMarcador(regiao);
+                else if(pulsarInterval[regiao]){ clearInterval(pulsarInterval[regiao]); marcadores[regiao].setRadius(800);}
+            }
+        };
+        label.atualizarPulsar();
 
-        // Abre modal
-        new bootstrap.Modal(document.getElementById("obsModal")).show();
-    });
+        // Listener modal
+        label.addEventListener("click", e=>{
+            if(e.target.tagName==="INPUT") return;
+            regiaoSelecionada = regiao;
+            document.getElementById("modalRegiao").textContent=regiao;
+            document.getElementById("obsTexto").value = observacoes[regiao]||"";
+            document.getElementById("sugestoesAuxilio").textContent="";
+            new bootstrap.Modal(document.getElementById("obsModal")).show();
+        });
+    }
+}
 
-    card.atualizarPulsar=atualizarCardPulsar;
+/* --------------------- Listener do select lado --------------------- */
+document.getElementById("lado").addEventListener("change", function(){
+    const lado = this.value;
+    atualizarCardsPorLado(lado);
 });
 
-/* --------------------- Salvar Observação --------------------- */
+/* --------------------- Salvar observação --------------------- */
 document.getElementById("salvarObs").addEventListener("click",function(){
     let texto=document.getElementById("obsTexto").value;
     observacoes[regiaoSelecionada]=texto;
 
+    let estilo=corMarcador(status[regiaoSelecionada]);
+    let popupTexto = `<b>${regiaoSelecionada}</b><br>Status: ${status[regiaoSelecionada]}<br><i>${texto}</i>`;
+    if(status[regiaoSelecionada]==="amarelo" || status[regiaoSelecionada]==="vermelho"){
+        popupTexto += `<br><b>Dia sem entrega:</b> ${dataAtual}`;
+    }
+
     if(marcadores[regiaoSelecionada]){
-        let estilo=corMarcador(status[regiaoSelecionada]);
-
-        let popupTexto = `<b>${regiaoSelecionada}</b><br>Status: ${status[regiaoSelecionada]}<br><i>${texto}</i>`;
-        if(status[regiaoSelecionada]==="amarelo" || status[regiaoSelecionada]==="vermelho"){
-            popupTexto += `<br><b>Dia sem entrega:</b> ${dataAtual}`;
-        }
-
-        marcadores[regiaoSelecionada]
-            .bindPopup(popupTexto)
-            .setStyle({color:estilo.cor,fillColor:estilo.cor,fillOpacity:estilo.opacidade});
+        marcadores[regiaoSelecionada].bindPopup(popupTexto).setStyle({
+            color:estilo.cor, fillColor:estilo.cor, fillOpacity:estilo.opacidade
+        });
     }
 
     fetch("/salvar_obs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({regiao:regiaoSelecionada,obs:texto})});
@@ -288,26 +295,7 @@ document.getElementById("salvarObs").addEventListener("click",function(){
 function atualizarStatus(regiao,atendida){
     if(atendida) status[regiao]="verde";
     else{ if(status[regiao]==="verde") status[regiao]="amarelo"; else if(status[regiao]==="amarelo") status[regiao]="vermelho"; }
-
-    if(marcadores[regiao]){
-        let estilo=corMarcador(status[regiao]);
-        let popupTexto = `<b>${regiao}</b><br>Status: ${status[regiao]}<br><i>${observacoes[regiao]||""}</i>`;
-        if(status[regiao]==="amarelo" || status[regiao]==="vermelho"){
-            popupTexto += `<br><b>Dia sem entrega:</b> ${dataAtual}`;
-        }
-
-        marcadores[regiao].bindPopup(popupTexto).setStyle({
-            color:estilo.cor,
-            fillColor:estilo.cor,
-            fillOpacity:estilo.opacidade
-        });
-
-        if(status[regiao]==="amarelo"||status[regiao]==="vermelho") pulsarMarcador(regiao);
-        else if(pulsarInterval[regiao]){ clearInterval(pulsarInterval[regiao]); marcadores[regiao].setRadius(800);}
-    }
-
-    let card=document.querySelector(`.card-regiao[data-regiao='${regiao}']`);
-    if(card) card.atualizarPulsar();
+    document.querySelector(`.card-regiao[data-regiao='${regiao}']`).atualizarPulsar();
     atualizarPainelResumo();
 }
 
@@ -329,42 +317,39 @@ function selecionarTodos(){document.querySelectorAll("input[type='checkbox']").f
 /* --------------------- Inicializa Painel --------------------- */
 atualizarPainelResumo();
 
-/* --------------------- Função para distância Haversine --------------------- */
+/* --------------------- Distância Haversine --------------------- */
 function distanciaHaversine(coord1, coord2) {
-    const R = 6371; // Raio da Terra em km
+    const R = 6371;
     const dLat = (coord2[0]-coord1[0]) * Math.PI/180;
     const dLon = (coord2[1]-coord1[1]) * Math.PI/180;
     const lat1 = coord1[0] * Math.PI/180;
     const lat2 = coord2[0] * Math.PI/180;
-
     const a = Math.sin(dLat/2)**2 +  Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
 }
 
-/* --------------------- Sugerir regiões de auxílio --------------------- */
+/* --------------------- Sugestão de auxílio --------------------- */
 function sugerirAuxilio(regiaoVermelha) {
     const proximas = [];
     const coordR = todasRegioes[regiaoVermelha].coords;
-
-    for (let key in todasRegioes) {
-        if (key === regiaoVermelha) continue;
-        if (status[key] === "verde" || status[key] === "amarelo") {
-            proximas.push({
-                regiao: key,
-                dist: distanciaHaversine(coordR, todasRegioes[key].coords)
-            });
+    for (let key in todasRegioes){
+        if(key===regiaoVermelha) continue;
+        if(status[key]==="verde" || status[key]==="amarelo"){
+            proximas.push({regiao:key, dist:distanciaHaversine(coordR, todasRegioes[key].coords)});
         }
     }
-    proximas.sort((a,b) => a.dist - b.dist);
-    return proximas.slice(0,3); // Top 3 mais próximas
+    proximas.sort((a,b)=>a.dist-b.dist);
+    return proximas.slice(0,3);
 }
 
-
-
+// Inicializa cards com lado sugerido
+atualizarCardsPorLado("{{ lado_sugerido }}");
 </script>
+
 </body>
 </html>
+
 
 
 
