@@ -92,20 +92,38 @@ def atualizar():
     hoje = date.today()
 
     conn = get_conn()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # 🔹 Verifica se já houve atualização para o lado no dia de hoje
+    # 🔹 1. Verifica se já houve atualização no dia (comparando só a DATA)
     cur.execute("""
         SELECT 1 FROM lado_atualizacao 
-        WHERE data_registro = %s
+        WHERE DATE(data_registro) = %s
         LIMIT 1
     """, (hoje,))
     if cur.fetchone():
         cur.close()
         conn.close()
-        return jsonify({"erro": "Atualização já realizada hoje"}), 403
+        return jsonify({"erro": "Já houve atualização hoje. Tente novamente amanhã."}), 403
 
-    # Atualiza status das regiões
+    # 🔹 2. Recupera o último lado registrado (dia útil anterior)
+    cur.execute("""
+        SELECT lado, DATE(data_registro) as dia 
+        FROM lado_atualizacao 
+        ORDER BY data_registro DESC 
+        LIMIT 1
+    """)
+    ultimo = cur.fetchone()
+    if ultimo:
+        ultimo_lado = ultimo["lado"]
+        ultimo_dia = ultimo["dia"]
+
+        # Se hoje não é o primeiro dia, precisa ser lado oposto
+        if lado == ultimo_lado:
+            cur.close()
+            conn.close()
+            return jsonify({"erro": f"O lado {lado} já foi atendido no último dia útil ({ultimo_dia}). Hoje deve ser o lado oposto."}), 403
+
+    # 🔹 3. Atualiza status das regiões normalmente
     for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
         if regiao in atendidas:
             status_regioes[regiao] = "verde"
@@ -114,16 +132,15 @@ def atualizar():
                 status_regioes[regiao] = "amarelo"
             elif status_regioes[regiao] == "amarelo":
                 status_regioes[regiao] = "vermelho"
-                # Salva no banco a data de não entrega
                 cur.execute(
                     "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
                     (regiao, hoje, "Sem entrega registrada")
                 )
 
-    # 🔹 Salva lado atualizado do dia
+    # 🔹 4. Registra lado atualizado do dia
     cur.execute(
-        "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, %s)",
-        (lado, hoje)
+        "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())",
+        (lado,)
     )
 
     conn.commit()
@@ -131,6 +148,7 @@ def atualizar():
     conn.close()
 
     return ("", 204)
+
 
 
 @app.route("/salvar_obs", methods=["POST"])
@@ -164,4 +182,5 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
