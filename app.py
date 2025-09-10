@@ -53,7 +53,7 @@ def carregar_dados():
         status_regioes[row["regiao"]] = "vermelho"
 
     # Carrega último lado atualizado
-    cur.execute("SELECT lado, data_registro FROM ultimo_lado ORDER BY data_registro DESC LIMIT 1")
+    cur.execute("SELECT lado, data_registro FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
     row = cur.fetchone()
     if row:
         app.config["ULTIMO_LADO"] = row[0]
@@ -127,7 +127,7 @@ def atualizar():
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO ultimo_lado (lado, data_registro) VALUES (%s, %s)",
+        "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, %s)",
         (lado, hoje)
     )
     conn.commit()
@@ -171,3 +171,4 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
