@@ -67,32 +67,57 @@ def carregar_dados():
 
 carregar_dados()
 
-# -------------------- Rotas --------------------
-@app.route("/")
+# -------------------- Rota principal (GET + POST) --------------------
+@app.route("/", methods=["GET", "POST"])
 def index():
-    # 🔹 Detecta automaticamente o lado do dia
+    hoje = date.today()
+    mensagem = None
+    lado_bloqueado = False
+
+    # Detecta último lado registrado
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-    cur.execute("""
-        SELECT lado, DATE(data_registro) as dia 
-        FROM lado_atualizacao 
-        ORDER BY data_registro DESC 
-        LIMIT 1
-    """)
+    cur.execute("SELECT lado, DATE(data_registro) as dia FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
     ultimo = cur.fetchone()
+
+    if request.method == "POST":
+        lado = request.form.get("lado")
+        atendidas = request.form.getlist("atendidas")
+
+        if ultimo and ultimo["dia"] == hoje:
+            lado_bloqueado = True
+            mensagem = f"O lado {ultimo['lado']} já foi atualizado hoje. Não é possível registrar novamente."
+        else:
+            # Atualiza status das regiões
+            for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
+                if regiao in atendidas:
+                    status_regioes[regiao] = "verde"
+                else:
+                    if status_regioes[regiao] == "verde":
+                        status_regioes[regiao] = "amarelo"
+                    elif status_regioes[regiao] == "amarelo":
+                        status_regioes[regiao] = "vermelho"
+                        cur.execute(
+                            "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
+                            (regiao, hoje, "Sem entrega registrada")
+                        )
+            # Registra lado atualizado
+            cur.execute(
+                "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())",
+                (lado,)
+            )
+            conn.commit()
+            mensagem = f"Distribuição registrada para lado {lado}."
+
+    else:
+        # GET: determina lado padrão
+        if ultimo and ultimo["dia"] < hoje:
+            lado = "B" if ultimo["lado"] == "A" else "A"
+        else:
+            lado = "A"
+
     cur.close()
     conn.close()
-
-    hoje = date.today()
-    if ultimo and ultimo["dia"] < hoje:  
-        # Alterna lado automaticamente
-        lado_default = "B" if ultimo["lado"] == "A" else "A"
-    else:
-        # Primeiro acesso ou mesmo dia
-        lado_default = "A"
-
-    lado = request.args.get("lado", lado_default)
 
     regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
     dias_sem_entrega = [r for r, s in status_regioes.items() if s == "vermelho"]
@@ -105,60 +130,13 @@ def index():
         observacoes=observacoes,
         data=datetime.now().strftime("%d/%m/%Y"),
         dias_sem_entrega=dias_sem_entrega,
-        lado=lado
+        lado=lado,
+        lado_bloqueado=lado_bloqueado,
+        mensagem=mensagem,
+        lado_sugerido=lado
     )
 
-
-@app.route("/", methods=["POST"])
-def atualizar():
-    lado = request.form.get("lado")
-    atendidas = request.form.getlist("atendidas")
-    hoje = date.today()
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-    # 🔹 Bloqueio: só 1 atualização por dia
-    cur.execute("""
-        SELECT lado FROM lado_atualizacao 
-        WHERE DATE(data_registro) = %s
-        LIMIT 1
-    """, (hoje,))
-    registro = cur.fetchone()
-    if registro:
-        cur.close()
-        conn.close()
-        return jsonify({
-            "erro": f"O lado {registro['lado']} já foi atualizado hoje. Não é possível registrar novamente."
-        }), 403
-
-    # 🔹 Atualiza status das regiões
-    for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
-        if regiao in atendidas:
-            status_regioes[regiao] = "verde"
-        else:
-            if status_regioes[regiao] == "verde":
-                status_regioes[regiao] = "amarelo"
-            elif status_regioes[regiao] == "amarelo":
-                status_regioes[regiao] = "vermelho"
-                cur.execute(
-                    "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
-                    (regiao, hoje, "Sem entrega registrada")
-                )
-
-    # 🔹 Registra lado atualizado do dia
-    cur.execute(
-        "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())",
-        (lado,)
-    )
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return jsonify({"sucesso": f"Distribuição registrada para lado {lado}."}), 200
-
-
+# -------------------- Salvar observação --------------------
 @app.route("/salvar_obs", methods=["POST"])
 def salvar_observacao():
     data = request.get_json()
@@ -178,8 +156,9 @@ def salvar_observacao():
     cur.close()
     conn.close()
 
-    return jsonify({"sucess": True, "regiao": regiao, "observacao": texto})
+    return jsonify({"sucesso": True, "regiao": regiao, "observacao": texto})
 
+# -------------------- Endpoint dados --------------------
 @app.route("/dados")
 def dados():
     return jsonify({
@@ -190,7 +169,3 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-
