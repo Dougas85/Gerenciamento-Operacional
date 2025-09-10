@@ -62,8 +62,28 @@ def carregar_dados():
 
     cur.close()
     conn.close()
-
+    
 carregar_dados()
+
+def lado_ja_atualizado(lado):
+    conn = get_conn()
+    cur = conn.cursor()
+    hoje = datetime.now().date()
+    cur.execute("SELECT 1 FROM lado_atualizacao WHERE lado=%s AND data_registro=%s", (lado, hoje))
+    existe = cur.fetchone() is not None
+    cur.close()
+    conn.close()
+    return existe
+
+def registrar_lado_atualizado(lado):
+    conn = get_conn()
+    cur = conn.cursor()
+    hoje = datetime.now().date()
+    cur.execute("INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, %s) ON CONFLICT (data_registro) DO NOTHING", (lado, hoje))
+    conn.commit()
+    cur.close()
+    conn.close()
+
 
 # -------------------- Rotas --------------------
 @app.route("/")
@@ -71,6 +91,7 @@ def index():
     lado = request.args.get("lado", "A")
     regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
     dias_sem_entrega = [r for r, s in status_regioes.items() if s == "vermelho"]
+    lado_bloqueado = lado_ja_atualizado(lado)
 
     return render_template(
         "index.html",
@@ -78,15 +99,19 @@ def index():
         todas_regioes=regioes,
         status=status_regioes,
         observacoes=observacoes,
-        data=data_atual,
+        data=datetime.now().strftime("%d/%m/%Y"),
         dias_sem_entrega=dias_sem_entrega,
-        lado=lado
+        lado=lado,
+        lado_bloqueado=lado_bloqueado
     )
 
 @app.route("/", methods=["POST"])
 def atualizar():
     lado = request.form.get("lado")
     atendidas = request.form.getlist("atendidas")
+
+    if lado_ja_atualizado(lado):
+        return jsonify({"error": f"Lado {lado} já atualizado hoje"}), 400
 
     conn = get_conn()
     cur = conn.cursor()
@@ -109,6 +134,7 @@ def atualizar():
     cur.close()
     conn.close()
 
+    registrar_lado_atualizado(lado)
     return ("", 204)
 
 @app.route("/salvar_obs", methods=["POST"])
@@ -139,6 +165,13 @@ def dados():
         "observacoes": observacoes
     })
 
+@app.route("/dados_lado")
+def dados_lado():
+    lado = request.args.get("lado", "A")
+    atualizado = lado_ja_atualizado(lado)
+    return jsonify({"atualizado": atualizado})
+
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
