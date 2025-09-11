@@ -261,6 +261,8 @@ function atualizarCardsPorLado(ladoSelecionado){
         col.appendChild(label);
         container.appendChild(col);
 
+        setTimeout(() => label.classList.add("fade-in"), 50);
+
         // função de atualização do visual do card (cor/pulsar/obs)
         label.atualizarPulsar = function(){
             label.classList.remove("pulsar-amarelo","pulsar-vermelho","card-verde","com-obs");
@@ -409,4 +411,5 @@ atualizarPainelResumo();
 </script>
 </body>
 </html>
+
 
