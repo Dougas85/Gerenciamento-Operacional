@@ -72,7 +72,8 @@
     transition: all 0.3s ease;
     opacity: 0;
     transform: translateY(20px);
-    color: #fff;
+    color: #000;
+    background-color: #f0f0f0;
     user-select: none;
 }
 
@@ -184,3 +185,4 @@ button.btn-secondary:hover {
     border-radius: 8px;
     resize: none;
 }
+
