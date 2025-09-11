@@ -10,14 +10,26 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      /* Pequeno ajuste para garantir visual dos cards-resumo */
+      .resumo-card { color: #fff; border-radius: .5rem; padding: .75rem; min-width: 120px; }
+      .card-regiao { cursor: pointer; user-select: none; display:flex; align-items:center; justify-content:center; gap:.3rem; }
+      .card-verde { background:#e9f7ef; border:1px solid #28a745; color:#155724; }
+      .pulsar-amarelo { background:#fff8e1; border:1px solid #ffc107; color:#856404; animation: pulse 1s infinite; }
+      .pulsar-vermelho { background:#ffecec; border:1px solid #dc3545; color:#721c24; animation: pulse 1s infinite; }
+      .com-obs .aviso-obs { display:inline-block; margin-left:.5rem; }
+      .aviso-obs { display:none; }
+      @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(0,0,0,0.05);} 70%{box-shadow:0 0 0 10px rgba(0,0,0,0);} 100%{box-shadow:0 0 0 0 rgba(0,0,0,0);} }
+      #map { height: 420px; border-radius:.5rem; }
+    </style>
 </head>
 <body>
 
 <!-- Header -->
-<header class="header-custom">
+<header class="header-custom py-3">
     <div class="container text-center">
-        <h1>GERAI</h1>
-        <img src="{{ url_for('static', filename='envelope.png') }}" alt="Logo" class="logo-header">
+        <h1 class="mb-1">GERAI</h1>
+        <img src="{{ url_for('static', filename='envelope.png') }}" alt="Logo" class="logo-header" style="height:48px">
     </div>
 </header>
 
@@ -32,11 +44,11 @@
     <!-- Mensagem sobre o lado do dia -->
     {% if lado_bloqueado %}
     <p class="text-danger text-center fw-semibold">
-        As entregas do lado {{ lado }} já foram atualizadas hoje. Você só pode alterar observações.
+        As entregas do lado {{ lado_sugerido }} já foram atualizadas hoje. Você só pode alterar observações.
     </p>
     {% else %}
     <p class="text-success text-center fw-semibold">
-        Atualize as entregas do lado {{ lado }} hoje.
+        Atualize as entregas do lado {{ lado_sugerido }} hoje.
     </p>
     {% endif %}
 
@@ -47,52 +59,37 @@
     {% endif %}
 
     <!-- Formulário único -->
-    <form method="POST" id="form-regioes">
+    <form method="POST" id="form-regioes" class="mb-4">
         <div class="mb-3 text-center">
-            <label for="lado" class="form-label fw-semibold">Selecione o lado:</label>
+            <label for="lado" class="form-label fw-semibold me-2">Selecione o lado:</label>
             <select class="form-select w-auto d-inline-block" id="lado" name="lado" {% if lado_bloqueado %} disabled {% endif %}>
                 <option value="A" {% if lado_sugerido == "A" %}selected{% endif %}>Lado A</option>
                 <option value="B" {% if lado_sugerido == "B" %}selected{% endif %}>Lado B</option>
             </select>
-
         </div>
 
         <!-- Botões de ação -->
         <div class="d-flex justify-content-between mb-3">
-            <button type="button" class="btn btn-outline-secondary" onclick="selecionarTodos()"
-                    {% if lado_bloqueado %} disabled {% endif %}>
+            <button type="button" class="btn btn-outline-secondary" id="selecionarTodosBtn" {% if lado_bloqueado %} disabled {% endif %}>
                 <i class="bi bi-check2-square"></i> Selecionar Todos
             </button>
-            <button type="submit" class="btn btn-primary"
-                    {% if lado_bloqueado %} disabled {% endif %}>
+            <button type="submit" class="btn btn-primary" id="btnAtualizar" {% if lado_bloqueado %} disabled {% endif %}>
                 <i class="bi bi-arrow-repeat"></i> Atualizar
             </button>
         </div>
 
-        <!-- Cards das Regiões -->
-        <div class="row g-3">
-            {% for regiao in regioes %}
-            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                <label class="card card-regiao shadow-sm p-2 text-center fw-semibold" data-regiao="{{ regiao }}">
-                    <span class="aviso-obs" title="Observação">⚠️</span>
-                    <input type="checkbox" class="form-check-input me-1" name="atendidas" value="{{ regiao }}"
-                           {% if lado_bloqueado %} disabled {% endif %}>
-                    {{ regiao }}
-                </label>
-            </div>
-            {% endfor %}
-        </div>
+        <!-- Cards das Regiões (container limpo: preenchido por JS) -->
+        <div class="row g-3" id="cardsContainer"></div>
     </form>
 
     <!-- Mapa -->
     <h2 class="mt-5">Mapa</h2>
-    <div id="map"></div>
+    <div id="map" class="mb-5"></div>
 </div>
 
-<footer>
+<footer class="py-3 text-center">
     <p>&copy; 2025 DFS. Todos os direitos reservados.</p>
 </footer>
-
 
 <!-- Modal Observações -->
 <div class="modal fade" id="obsModal" tabindex="-1" aria-labelledby="obsModalLabel" aria-hidden="true">
@@ -113,18 +110,21 @@
     </div>
   </div>
 </div>
+
 <script>
-/* --------------------- Dados Iniciais --------------------- */
-let regioesCards = {{ regioes | tojson }};
-let todasRegioes = {{ todas_regioes | tojson }};
-let status = {{ status | tojson }};
-let observacoes = {{ observacoes | tojson }};
+/* --------------------- Dados iniciais passados pelo Flask --------------------- */
+const todasRegioes = {{ todas_regioes | tojson }};
+const status = {{ status | tojson }};
+const observacoes = {{ observacoes | tojson }};
+const dataAtual = "{{ data }}";
+let ladoBloqueado = {{ lado_bloqueado | tojson }};
+let ladoSugerido = {{ lado_sugerido | tojson }};
+
 let marcadores = {};
 let pulsarInterval = {};
 let regiaoSelecionada = null;
-const dataAtual = "{{ data }}";
 
-/* --------------------- Funções Auxiliares --------------------- */
+/* --------------------- Funções auxiliares --------------------- */
 function corMarcador(s){
     if(s==="verde") return {cor:"#28a745", opacidade:0.3};
     if(s==="amarelo") return {cor:"#ffc107", opacidade:0.7};
@@ -142,7 +142,7 @@ function atualizarPainelResumo(){
         else if(status[regiao]==="vermelho") vermelhas++;
     }
 
-    const cards=[ 
+    const cards=[
         {titulo:"Total de Regiões", valor:total, classe:"bg-primary"},
         {titulo:"Verdes", valor:verdes, classe:"bg-success"},
         {titulo:"Amarelas", valor:amarelas, classe:"bg-warning text-dark"},
@@ -159,163 +159,51 @@ function atualizarPainelResumo(){
 }
 
 /* --------------------- Mapa --------------------- */
-var map = L.map('map').setView([-22.14, -51.40], 12);
+const map = L.map('map').setView([-22.14, -51.40], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
 
-for(let key in todasRegioes){
-    let latlng = todasRegioes[key].coords;
-    let estilo = corMarcador(status[key] || "verde");
-
-    let popupTexto = `<b>${key}</b><br>Status: ${status[key]}<br><i>${observacoes[key]||""}</i>`;
-    if(status[key]==="amarelo" || status[key]==="vermelho"){
-        popupTexto += `<br><b>Dia sem entrega:</b> ${dataAtual}`;
+function criarMarcadores(){
+    // limpa marcadores antigos se houver
+    for(let key in marcadores){
+        try { map.removeLayer(marcadores[key]); } catch(e){}
     }
+    marcadores = {};
 
-    marcadores[key] = L.circle(latlng,{
-        radius:800, color:estilo.cor, fillColor:estilo.cor, fillOpacity:estilo.opacidade, weight:2
-    }).addTo(map).bindPopup(popupTexto);
+    for(let key in todasRegioes){
+        const latlng = todasRegioes[key].coords;
+        const estilo = corMarcador(status[key] || "verde");
 
-    if(status[key]==="amarelo"||status[key]==="vermelho") pulsarMarcador(key);
+        let popupTexto = `<b>${key}</b><br>Status: ${status[key] || 'verde'}<br><i>${observacoes[key]||""}</i>`;
+        if(status[key]==="amarelo" || status[key]==="vermelho"){
+            popupTexto += `<br><b>Dia sem entrega:</b> ${dataAtual}`;
+        }
+
+        const marker = L.circle(latlng, {
+            radius:800,
+            color: estilo.cor,
+            fillColor: estilo.cor,
+            fillOpacity: estilo.opacidade,
+            weight:2
+        }).addTo(map).bindPopup(popupTexto);
+
+        marcadores[key] = marker;
+
+        if(status[key]==="amarelo" || status[key]==="vermelho") pulsarMarcador(key);
+    }
 }
 
 function pulsarMarcador(key){
-    let marker=marcadores[key];
+    const marker = marcadores[key];
     if(!marker) return;
     if(pulsarInterval[key]) clearInterval(pulsarInterval[key]);
-    let radius=800, growing=true;
-    pulsarInterval[key]=setInterval(()=>{
+    let radius = 800, growing = true;
+    pulsarInterval[key] = setInterval(()=>{
         radius += (growing?8:-8);
-        if(radius>=1000) growing=false;
-        if(radius<=800) growing=true;
+        if(radius >= 1000) growing = false;
+        if(radius <= 800) growing = true;
         marker.setRadius(radius);
-    },100);
+    }, 100);
 }
-
-/* --------------------- Atualizar cards por lado --------------------- */
-function atualizarCardsPorLado(ladoSelecionado){
-    const container = document.querySelector("#form-regioes .row.g-3");
-    container.innerHTML=""; // limpa cards antigos
-
-    for(let regiao in todasRegioes){
-        if(!regiao.endsWith(ladoSelecionado)) continue;
-
-        const div = document.createElement("div");
-        div.className = "col-6 col-sm-4 col-md-3 col-lg-2";
-
-        const label = document.createElement("label");
-        label.className = "card card-regiao shadow-sm p-2 text-center fw-semibold";
-        label.dataset.regiao = regiao;
-
-        const input = document.createElement("input");
-        input.type="checkbox";
-        input.className="form-check-input me-1";
-        input.name="atendidas";
-        input.value=regiao;
-        input.disabled = {{ "true" if lado_bloqueado else "false" }};
-
-        label.appendChild(input);
-        label.appendChild(document.createTextNode(regiao));
-
-        // Aviso observação
-        const aviso = document.createElement("span");
-        aviso.className="aviso-obs";
-        aviso.textContent="⚠️";
-        label.appendChild(aviso);
-
-        div.appendChild(label);
-        container.appendChild(div);
-
-        // Função para atualizar cor e pulsação do card
-        label.atualizarPulsar = function(){
-            label.classList.remove("pulsar-amarelo","pulsar-vermelho","card-verde","com-obs");
-            if(status[regiao]==="amarelo") label.classList.add("pulsar-amarelo");
-            else if(status[regiao]==="vermelho") label.classList.add("pulsar-vermelho");
-            else label.classList.add("card-verde");
-
-            if(observacoes[regiao] && observacoes[regiao].trim()!==""){
-                label.classList.add("com-obs");
-                aviso.style.display="inline";
-            } else {
-                label.classList.remove("com-obs");
-                aviso.style.display="none";
-            }
-
-            // Atualiza o marcador correspondente
-            if(marcadores[regiao]){
-                let estilo=corMarcador(status[regiao]);
-                marcadores[regiao].setStyle({color:estilo.cor, fillColor:estilo.cor, fillOpacity:estilo.opacidade});
-                if(status[regiao]==="amarelo"||status[regiao]==="vermelho") pulsarMarcador(regiao);
-                else if(pulsarInterval[regiao]){ clearInterval(pulsarInterval[regiao]); marcadores[regiao].setRadius(800);}
-            }
-        };
-        label.atualizarPulsar();
-
-        // Listener modal
-        label.addEventListener("click", e=>{
-            if(e.target.tagName==="INPUT") return;
-            regiaoSelecionada = regiao;
-            document.getElementById("modalRegiao").textContent=regiao;
-            document.getElementById("obsTexto").value = observacoes[regiao]||"";
-            document.getElementById("sugestoesAuxilio").textContent="";
-            new bootstrap.Modal(document.getElementById("obsModal")).show();
-        });
-    }
-}
-
-/* --------------------- Listener do select lado --------------------- */
-document.getElementById("lado").addEventListener("change", function(){
-    const lado = this.value;
-    atualizarCardsPorLado(lado);
-});
-
-/* --------------------- Salvar observação --------------------- */
-document.getElementById("salvarObs").addEventListener("click",function(){
-    let texto=document.getElementById("obsTexto").value;
-    observacoes[regiaoSelecionada]=texto;
-
-    let estilo=corMarcador(status[regiaoSelecionada]);
-    let popupTexto = `<b>${regiaoSelecionada}</b><br>Status: ${status[regiaoSelecionada]}<br><i>${texto}</i>`;
-    if(status[regiaoSelecionada]==="amarelo" || status[regiaoSelecionada]==="vermelho"){
-        popupTexto += `<br><b>Dia sem entrega:</b> ${dataAtual}`;
-    }
-
-    if(marcadores[regiaoSelecionada]){
-        marcadores[regiaoSelecionada].bindPopup(popupTexto).setStyle({
-            color:estilo.cor, fillColor:estilo.cor, fillOpacity:estilo.opacidade
-        });
-    }
-
-    fetch("/salvar_obs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({regiao:regiaoSelecionada,obs:texto})});
-    bootstrap.Modal.getInstance(document.getElementById("obsModal")).hide();
-    atualizarPainelResumo();
-    document.querySelector(`.card-regiao[data-regiao='${regiaoSelecionada}']`).atualizarPulsar();
-});
-
-/* --------------------- Atualizar status via checkbox --------------------- */
-function atualizarStatus(regiao,atendida){
-    if(atendida) status[regiao]="verde";
-    else{ if(status[regiao]==="verde") status[regiao]="amarelo"; else if(status[regiao]==="amarelo") status[regiao]="vermelho"; }
-    document.querySelector(`.card-regiao[data-regiao='${regiao}']`).atualizarPulsar();
-    atualizarPainelResumo();
-}
-
-/* --------------------- Form submit --------------------- */
-document.getElementById("form-regioes").addEventListener("submit",function(e){
-    e.preventDefault();
-    let formData=new FormData(this);
-    let atendidas=formData.getAll("atendidas");
-    document.querySelectorAll(".card-regiao input[type='checkbox']").forEach(input=>{
-        let regiao=input.value;
-        atualizarStatus(regiao,atendidas.includes(regiao));
-    });
-    fetch("/",{method:"POST",body:formData});
-});
-
-/* --------------------- Selecionar todos --------------------- */
-function selecionarTodos(){document.querySelectorAll("input[type='checkbox']").forEach(cb=>cb.checked=true);}
-
-/* --------------------- Inicializa Painel --------------------- */
-atualizarPainelResumo();
 
 /* --------------------- Distância Haversine --------------------- */
 function distanciaHaversine(coord1, coord2) {
@@ -334,25 +222,202 @@ function sugerirAuxilio(regiaoVermelha) {
     const proximas = [];
     const coordR = todasRegioes[regiaoVermelha].coords;
     for (let key in todasRegioes){
-        if(key===regiaoVermelha) continue;
-        if(status[key]==="verde" || status[key]==="amarelo"){
-            proximas.push({regiao:key, dist:distanciaHaversine(coordR, todasRegioes[key].coords)});
+        if(key === regiaoVermelha) continue;
+        if(status[key] === "verde" || status[key] === "amarelo"){
+            proximas.push({regiao: key, dist: distanciaHaversine(coordR, todasRegioes[key].coords)});
         }
     }
-    proximas.sort((a,b)=>a.dist-b.dist);
+    proximas.sort((a,b)=> a.dist - b.dist);
     return proximas.slice(0,3);
 }
 
-// Inicializa cards com lado sugerido
-atualizarCardsPorLado("{{ lado_sugerido }}");
-</script>
+/* --------------------- Atualizar cards por lado (render dinâmico) --------------------- */
+function atualizarCardsPorLado(ladoSelecionado){
+    const container = document.getElementById("cardsContainer");
+    container.innerHTML = "";
 
+    for(let regiao in todasRegioes){
+        if(!regiao.endsWith(ladoSelecionado)) continue;
+
+        const col = document.createElement("div");
+        col.className = "col-6 col-sm-4 col-md-3 col-lg-2";
+
+        const label = document.createElement("label");
+        label.className = "card card-regiao shadow-sm p-2 text-center fw-semibold";
+        label.dataset.regiao = regiao;
+
+        // checkbox
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = "form-check-input me-1";
+        input.name = "atendidas";
+        input.value = regiao;
+        input.disabled = ladoBloqueado;
+        // marca checked se status for verde (assumindo que "verde" = entregue)
+        if(status[regiao] === "verde") input.checked = true;
+
+        // texto/região
+        const spanText = document.createElement("span");
+        spanText.textContent = regiao;
+
+        // aviso observação
+        const aviso = document.createElement("span");
+        aviso.className = "aviso-obs";
+        aviso.title = "Observação";
+        aviso.textContent = "⚠️";
+
+        label.appendChild(input);
+        label.appendChild(spanText);
+        label.appendChild(aviso);
+
+        col.appendChild(label);
+        container.appendChild(col);
+
+        // função de atualização do visual do card (cor/pulsar/obs)
+        label.atualizarPulsar = function(){
+            label.classList.remove("pulsar-amarelo","pulsar-vermelho","card-verde","com-obs");
+            if(status[regiao] === "amarelo") label.classList.add("pulsar-amarelo");
+            else if(status[regiao] === "vermelho") label.classList.add("pulsar-vermelho");
+            else label.classList.add("card-verde");
+
+            if(observacoes[regiao] && observacoes[regiao].trim() !== ""){
+                label.classList.add("com-obs");
+                aviso.style.display = "inline-block";
+            } else {
+                aviso.style.display = "none";
+            }
+
+            // atualiza marcador
+            if(marcadores[regiao]){
+                let estilo = corMarcador(status[regiao]);
+                marcadores[regiao].setStyle({color:estilo.cor, fillColor:estilo.cor, fillOpacity:estilo.opacidade});
+                if(status[regiao] === "amarelo" || status[regiao] === "vermelho") pulsarMarcador(regiao);
+                else if(pulsarInterval[regiao]){ clearInterval(pulsarInterval[regiao]); marcadores[regiao].setRadius(800); }
+            }
+        };
+        label.atualizarPulsar();
+
+        // modal ao clicar no card (cuidado: se clicar no input não abre)
+        label.addEventListener("click", (e)=>{
+            if(e.target.tagName === "INPUT") return;
+            regiaoSelecionada = regiao;
+            document.getElementById("modalRegiao").textContent = regiao;
+            document.getElementById("obsTexto").value = observacoes[regiao] || "";
+
+            // sugestões se vermelho
+            if(status[regiao] === "vermelho"){
+                const sugestoes = sugerirAuxilio(regiao);
+                if(sugestoes.length){
+                    let texto = "Sugestões de auxílio (mais próximas):\n";
+                    sugestoes.forEach(s => texto += `- ${s.regiao} (${s.dist.toFixed(2)} km)\n`);
+                    document.getElementById("sugestoesAuxilio").textContent = texto;
+                } else {
+                    document.getElementById("sugestoesAuxilio").textContent = "";
+                }
+            } else {
+                document.getElementById("sugestoesAuxilio").textContent = "";
+            }
+            new bootstrap.Modal(document.getElementById("obsModal")).show();
+        });
+    }
+}
+
+/* --------------------- Listeners principais --------------------- */
+document.getElementById("lado").addEventListener("change", function(){
+    const lado = this.value;
+    atualizarCardsPorLado(lado);
+});
+
+document.getElementById("selecionarTodosBtn").addEventListener("click", function(){
+    document.querySelectorAll("#cardsContainer input[type='checkbox']").forEach(cb=>{
+        if(!cb.disabled) cb.checked = true;
+    });
+});
+
+document.getElementById("salvarObs").addEventListener("click", function(){
+    const texto = document.getElementById("obsTexto").value;
+    if(!regiaoSelecionada) return;
+    observacoes[regiaoSelecionada] = texto;
+
+    // atualiza popup do marcador se existir
+    if(marcadores[regiaoSelecionada]){
+        const estilo = corMarcador(status[regiaoSelecionada] || "verde");
+        let popupTexto = `<b>${regiaoSelecionada}</b><br>Status: ${status[regiaoSelecionada] || 'verde'}<br><i>${texto}</i>`;
+        if(status[regiaoSelecionada] === "amarelo" || status[regiaoSelecionada] === "vermelho"){
+            popupTexto += `<br><b>Dia sem entrega:</b> ${dataAtual}`;
+        }
+        marcadores[regiaoSelecionada].bindPopup(popupTexto).setStyle({color:estilo.cor, fillColor:estilo.cor, fillOpacity:estilo.opacidade});
+    }
+
+    // grava no servidor
+    fetch("/salvar_obs", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ regiao: regiaoSelecionada, obs: texto })
+    }).then(resp => resp.json())
+      .then(data => {
+          // atualiza visual local
+          document.querySelector(`#cardsContainer label[data-regiao='${regiaoSelecionada}']`).atualizarPulsar();
+          atualizarPainelResumo();
+      })
+      .catch(err => console.error(err));
+
+    bootstrap.Modal.getInstance(document.getElementById("obsModal")).hide();
+});
+
+/* --------------------- Form submit (atualizar entregas) --------------------- */
+document.getElementById("form-regioes").addEventListener("submit", function(e){
+    e.preventDefault();
+
+    if(ladoBloqueado){
+        alert("Atualização já realizada hoje para este lado. Apenas observações podem ser alteradas.");
+        return;
+    }
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    // atualizar status local antes do envio (para visual imediato)
+    const atendidas = formData.getAll("atendidas");
+    const lado = formData.get("lado");
+    for(const regiao in todasRegioes){
+        if(!regiao.endsWith(lado)) continue;
+        if(atendidas.includes(regiao)) status[regiao] = "verde";
+        else {
+            if(status[regiao] === "verde") status[regiao] = "amarelo";
+            else if(status[regiao] === "amarelo") status[regiao] = "vermelho";
+        }
+    }
+    // atualiza cards e marcadores locais
+    atualizarCardsPorLado(lado);
+    criarMarcadores();
+    atualizarPainelResumo();
+
+    // envia ao backend
+    fetch("/", { method: "POST", body: formData })
+        .then(async resp => {
+            if(resp.ok){
+                // sucesso: recarrega página para pegar estado definitivo do backend (e mensagens)
+                location.reload();
+            } else {
+                // tenta mostrar erro do backend
+                let j;
+                try { j = await resp.json(); }
+                catch(e){ j = { erro: "Erro ao atualizar" }; }
+                alert(j.erro || j.error || "Não foi possível atualizar.");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Erro de rede ao tentar atualizar.");
+        });
+});
+
+/* --------------------- Inicialização --------------------- */
+criarMarcadores();
+atualizarCardsPorLado(ladoSugerido || "A");
+atualizarPainelResumo();
+
+</script>
 </body>
 </html>
-
-
-
-
-
-
-
