@@ -11,7 +11,7 @@ DB_URL = "postgresql://postgres.guyisltwbrcnwpbkoabn:analivia2307@aws-1-sa-east-
 def get_conn():
     return psycopg2.connect(DB_URL)
 
-# -------------------- Dados das regiões --------------------
+# -------------------- Dados fixos das regiões --------------------
 regioes = {
     "601A": {"coords": [-22.1227, -51.3855]}, "602A": {"coords": [-22.1276, -51.3886]},
     "603A": {"coords": [-22.1367, -51.3886]}, "604A": {"coords": [-22.1302, -51.3962]},
@@ -48,16 +48,16 @@ def carregar_dados():
         observacoes[row["regiao"]] = row["observacao"]
 
     # Não entregas
-    cur.execute("SELECT regiao, data_nao_entrega FROM regioes_nao_entrega")
+    cur.execute("SELECT regiao FROM regioes_nao_entrega")
     for row in cur.fetchall():
         status_regioes[row["regiao"]] = "vermelho"
 
-    # Último lado atualizado
-    cur.execute("SELECT lado, data_registro FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
+    # Último lado
+    cur.execute("SELECT lado, DATE(data_registro) as dia FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
     ultimo = cur.fetchone()
     if ultimo:
         app.config["ULTIMO_LADO"] = ultimo["lado"]
-        app.config["DATA_LADO"] = ultimo["data_registro"]
+        app.config["DATA_LADO"] = ultimo["dia"]
     else:
         app.config["ULTIMO_LADO"] = None
         app.config["DATA_LADO"] = None
@@ -67,16 +67,17 @@ def carregar_dados():
 
 carregar_dados()
 
-# -------------------- Rota principal (GET + POST) --------------------
+# -------------------- Rota principal --------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
     hoje = date.today()
     mensagem = None
     lado_bloqueado = False
 
-    # Detecta último lado registrado
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Última atualização
     cur.execute("SELECT lado, DATE(data_registro) as dia FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
     ultimo = cur.fetchone()
 
@@ -86,10 +87,10 @@ def index():
 
         if ultimo and ultimo["dia"] == hoje:
             lado_bloqueado = True
-            mensagem = f"O lado {ultimo['lado']} já foi atualizado hoje. Não é possível registrar novamente."
+            mensagem = f"O lado {ultimo['lado']} já foi atualizado em {hoje.strftime('%d/%m/%Y')}."
         else:
             # Atualiza status das regiões
-            for regiao in [r for r in regioes.keys() if r.endswith(lado)]:
+            for regiao in [r for r in regioes if r.endswith(lado)]:
                 if regiao in atendidas:
                     status_regioes[regiao] = "verde"
                 else:
@@ -102,15 +103,12 @@ def index():
                             (regiao, hoje, "Sem entrega registrada")
                         )
             # Registra lado atualizado
-            cur.execute(
-                "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())",
-                (lado,)
-            )
+            cur.execute("INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())", (lado,))
             conn.commit()
-            mensagem = f"Distribuição registrada para lado {lado}."
+            mensagem = f"Distribuição registrada para lado {lado} em {hoje.strftime('%d/%m/%Y')}."
 
     else:
-        # GET: determina lado padrão
+        # GET → sugere o lado
         if ultimo and ultimo["dia"] < hoje:
             lado = "B" if ultimo["lado"] == "A" else "A"
         else:
@@ -120,7 +118,6 @@ def index():
     conn.close()
 
     regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
-    dias_sem_entrega = [r for r, s in status_regioes.items() if s == "vermelho"]
 
     return render_template(
         "index.html",
@@ -129,7 +126,6 @@ def index():
         status=status_regioes,
         observacoes=observacoes,
         data=datetime.now().strftime("%d/%m/%Y"),
-        dias_sem_entrega=dias_sem_entrega,
         lado=lado,
         lado_bloqueado=lado_bloqueado,
         mensagem=mensagem,
@@ -145,13 +141,9 @@ def salvar_observacao():
 
     observacoes[regiao] = texto
 
-    # Salvar no banco
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO regioes_obs (regiao, observacao) VALUES (%s, %s)",
-        (regiao, texto)
-    )
+    cur.execute("INSERT INTO regioes_obs (regiao, observacao, data_registro) VALUES (%s, %s, NOW())", (regiao, texto))
     conn.commit()
     cur.close()
     conn.close()
@@ -161,10 +153,7 @@ def salvar_observacao():
 # -------------------- Endpoint dados --------------------
 @app.route("/dados")
 def dados():
-    return jsonify({
-        "status": status_regioes,
-        "observacoes": observacoes
-    })
+    return jsonify({"status": status_regioes, "observacoes": observacoes})
 
 # -------------------- Main --------------------
 if __name__ == "__main__":
