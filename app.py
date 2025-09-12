@@ -1,202 +1,183 @@
 from flask import Flask, render_template, request, jsonify
+from datetime import datetime, date
 import psycopg2
-from psycopg2.extras import RealDictCursor
-from datetime import date, datetime
+import psycopg2.extras
 
 app = Flask(__name__)
 
-# Configuração do banco
-DB_CONFIG = {
-    "dbname": "flaskdb_local",
-    "user": "postgres",
-    "password": "lara1503",
-    "host": "localhost",
-    "port": "5432"
+# -------------------- Configuração Banco --------------------
+DB_URL = "postgresql://postgres.guyisltwbrcnwpbkoabn:analivia2307@aws-1-sa-east-1.pooler.supabase.com:6543/postgres"
+
+def get_conn():
+    return psycopg2.connect(DB_URL)
+
+# -------------------- Dados fixos das regiões --------------------
+regioes = {
+    "601A": {"coords": [-22.1227, -51.3855]},
+    "602A": {"coords": [-22.1276, -51.3886]},
+    "603A": {"coords": [-22.1367, -51.3886]},
+    "604A": {"coords": [-22.1302, -51.3962]},
+    "605A": {"coords": [-22.1247, -51.3983]},
+    "606A": {"coords": [-22.1160, -51.3819]},
+    "607A": {"coords": [-22.1209, -51.3992]},
+    "608A": {"coords": [-22.1132, -51.3919]},
+    "609A": {"coords": [-22.1159, -51.4008]},
+    "610A": {"coords": [-22.1045, -51.3926]},
+    "611A": {"coords": [-22.0999, -51.4110]},
+    "612A": {"coords": [-22.0956, -51.4192]},
+    "613A": {"coords": [-22.0842, -51.4323]},
+    "614A": {"coords": [-22.1240, -51.3804]},
+    "615A": {"coords": [-22.1306, -51.3772]},
+    "616A": {"coords": [-22.090, -51.389]},
+    "617A": {"coords": [-22.1037, -51.3856]},
+    "601B": {"coords": [-22.1194, -51.3845]},
+    "602B": {"coords": [-22.1335, -51.3922]},
+    "603B": {"coords": [-22.1451, -51.3945]},
+    "604B": {"coords": [-22.1263, -51.3940]},
+    "605B": {"coords": [-22.1182, -51.3994]},
+    "606B": {"coords": [-22.1087, -51.3858]},
+    "607B": {"coords": [-22.1132, -51.3888]},
+    "608B": {"coords": [-22.1081, -51.3912]},
+    "609B": {"coords": [-22.1100, -51.4007]},
+    "610B": {"coords": [-22.0989, -51.4054]},
+    "611B": {"coords": [-22.1017, -51.4173]},
+    "612B": {"coords": [-22.1105, -51.4196]},
+    "613B": {"coords": [-22.1105, -51.4196]},
+    "614B": {"coords": [-22.0804, -51.4156]},
+    "615B": {"coords": [-22.1191, -51.3757]},
+    "616B": {"coords": [-22.0834, -51.3811]},
+    "617B": {"coords": [-22.0709, -51.3792]}
 }
 
-def get_db_conn():
-    return psycopg2.connect(**DB_CONFIG)
+status_regioes = {regiao: "verde" for regiao in regioes.keys()}
+observacoes = {regiao: "" for regiao in regioes.keys()}
 
+# -------------------- Carregar dados do banco --------------------
+def carregar_dados():
+    global observacoes, status_regioes
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-# ------------------ Funções auxiliares ------------------
-def criar_tabelas():
-    """Cria tabelas necessárias caso não existam"""
-    conn = get_db_conn()
-    cur = conn.cursor()
+    # Observações
+    cur.execute("SELECT regiao, observacao FROM regioes_obs ORDER BY data_registro DESC")
+    for row in cur.fetchall():
+        observacoes[row["regiao"]] = row["observacao"]
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS lado_atualizacao (
-            data DATE PRIMARY KEY,
-            lado VARCHAR(1) NOT NULL
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS regioes_status (
-            data DATE NOT NULL,
-            regiao VARCHAR(20) NOT NULL,
-            status VARCHAR(10) NOT NULL,
-            PRIMARY KEY (data, regiao)
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS regioes_obs (
-            regiao VARCHAR(20) PRIMARY KEY,
-            observacao TEXT
-        )
-    """)
-    conn.commit()
+    # Status das regiões
+    cur.execute("SELECT regiao, status FROM regioes_status ORDER BY data_registro DESC")
+    for row in cur.fetchall():
+        status_regioes[row["regiao"]] = row["status"]
+
+    # Último lado atualizado
+    cur.execute("SELECT lado, DATE(data_registro) as dia FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
+    ultimo = cur.fetchone()
+    if ultimo:
+        app.config["ULTIMO_LADO"] = ultimo["lado"]
+        app.config["DATA_LADO"] = ultimo["dia"]
+    else:
+        app.config["ULTIMO_LADO"] = None
+        app.config["DATA_LADO"] = None
+
     cur.close()
     conn.close()
 
+# Carregar logo ao iniciar
+carregar_dados()
 
-def carregar_status_do_dia(data_hoje):
-    """Carrega status de todas as regiões para a data do dia"""
-    conn = get_db_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    cur.execute("SELECT regiao, status FROM regioes_status WHERE data = %s", (data_hoje,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-
-    status = {}
-    for r in rows:
-        status[r["regiao"]] = r["status"]
-    return status
-
-
-def salvar_status_do_dia(data_hoje, status_dict):
-    """Apaga status do dia e salva os novos"""
-    conn = get_db_conn()
-    cur = conn.cursor()
-
-    cur.execute("DELETE FROM regioes_status WHERE data = %s", (data_hoje,))
-    for regiao, status in status_dict.items():
-        cur.execute(
-            "INSERT INTO regioes_status (data, regiao, status) VALUES (%s, %s, %s)",
-            (data_hoje, regiao, status)
-        )
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-
-def carregar_observacoes():
-    conn = get_db_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT regiao, observacao FROM regioes_obs")
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    obs = {}
-    for r in rows:
-        obs[r["regiao"]] = r["observacao"] or ""
-    return obs
-
-
-def salvar_observacao(regiao, texto):
-    conn = get_db_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO regioes_obs (regiao, observacao)
-        VALUES (%s, %s)
-        ON CONFLICT (regiao) DO UPDATE SET observacao = EXCLUDED.observacao
-    """, (regiao, texto))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-
-# ------------------ Rotas ------------------
+# -------------------- Rota principal --------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
-    data_hoje = date.today()
+    hoje = date.today()
+    mensagem = None
+    lado_bloqueado = False
 
-    # exemplo fixo de regiões (substitua pelo seu dicionário real)
-    todas_regioes = {
-        "601 A": {"coords": [-22.121, -51.389]},
-        "601 B": {"coords": [-22.131, -51.401]},
-        "602 A": {"coords": [-22.141, -51.392]},
-        "602 B": {"coords": [-22.151, -51.402]},
-    }
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    criar_tabelas()
-
-    conn = get_db_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-
-    # Qual lado já foi atualizado hoje?
-    cur.execute("SELECT lado FROM lado_atualizacao WHERE data = %s", (data_hoje,))
-    row = cur.fetchone()
-    lado_bloqueado = bool(row)
-    lado_sugerido = "A" if (not row or row["lado"] == "B") else "B"
+    # Última atualização
+    cur.execute("SELECT lado, DATE(data_registro) as dia FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
+    ultimo = cur.fetchone()
 
     if request.method == "POST":
-        if lado_bloqueado:
-            return jsonify({"erro": "Distribuição já registrada hoje."}), 400
-
         lado = request.form.get("lado")
         atendidas = request.form.getlist("atendidas")
 
-        # carregamos status do dia (antes de alterar)
-        status_atual = carregar_status_do_dia(data_hoje)
-
-        # atualiza apenas regiões do lado escolhido
-        for regiao in todas_regioes.keys():
-            if not regiao.endswith(lado):
-                continue
-            if regiao in atendidas:
-                status_atual[regiao] = "verde"
-            else:
-                # progressão amarelo → vermelho
-                if status_atual.get(regiao) == "verde":
-                    status_atual[regiao] = "amarelo"
-                elif status_atual.get(regiao) == "amarelo":
-                    status_atual[regiao] = "vermelho"
+        if ultimo and ultimo["dia"] == hoje:
+            lado_bloqueado = True
+            mensagem = f"O lado {ultimo['lado']} já foi atualizado em {hoje.strftime('%d/%m/%Y')}."
+        else:
+            # Atualiza status das regiões
+            for regiao in [r for r in regioes if r.endswith(lado)]:
+                if regiao in atendidas:
+                    status_regioes[regiao] = "verde"
                 else:
-                    status_atual[regiao] = "amarelo"  # primeira ausência
+                    if status_regioes[regiao] == "verde":
+                        status_regioes[regiao] = "amarelo"
+                    elif status_regioes[regiao] == "amarelo":
+                        status_regioes[regiao] = "vermelho"
+                        cur.execute(
+                            "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
+                            (regiao, hoje, "Sem entrega registrada")
+                        )
 
-        salvar_status_do_dia(data_hoje, status_atual)
+                # Persistir status no banco
+                cur.execute(
+                    "INSERT INTO regioes_status (regiao, status, data_registro) VALUES (%s, %s, NOW())",
+                    (regiao, status_regioes[regiao])
+                )
 
-        # grava lado atualizado
-        cur.execute(
-            "INSERT INTO lado_atualizacao (data, lado) VALUES (%s, %s) "
-            "ON CONFLICT (data) DO UPDATE SET lado = EXCLUDED.lado",
-            (data_hoje, lado)
-        )
-        conn.commit()
+            # Registrar lado atualizado
+            cur.execute("INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())", (lado,))
+            conn.commit()
+            mensagem = f"Distribuição registrada para lado {lado} em {hoje.strftime('%d/%m/%Y')}."
 
-        cur.close()
-        conn.close()
-        return jsonify({"mensagem": f"Distribuição registrada para lado {lado} em {data_hoje}."})
-
-    # GET → carregar dados atuais
-    status = carregar_status_do_dia(data_hoje)
-    observacoes = carregar_observacoes()
+    else:  # GET
+        if ultimo and ultimo["dia"] < hoje:
+            lado = "B" if ultimo["lado"] == "A" else "A"
+        else:
+            lado = "A"
 
     cur.close()
     conn.close()
 
+    # Apenas mostrar as regiões do lado atual
+    regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
+
     return render_template(
         "index.html",
-        todas_regioes=todas_regioes,
-        status=status,
+        regioes=regioes_filtradas,
+        todas_regioes=regioes,
+        status=status_regioes,
         observacoes=observacoes,
-        data=data_hoje.strftime("%d/%m/%Y"),
+        data=datetime.now().strftime("%d/%m/%Y"),
+        lado=lado,
         lado_bloqueado=lado_bloqueado,
-        lado_sugerido=lado_sugerido
+        mensagem=mensagem,
+        lado_sugerido=lado
     )
 
-
+# -------------------- Salvar observação --------------------
 @app.route("/salvar_obs", methods=["POST"])
-def salvar_obs():
+def salvar_observacao():
     data = request.get_json()
     regiao = data.get("regiao")
-    obs = data.get("obs", "")
-    salvar_observacao(regiao, obs)
-    return jsonify({"mensagem": "Observação salva."})
+    texto = data.get("obs", "")
+    observacoes[regiao] = texto
 
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO regioes_obs (regiao, observacao, data_registro) VALUES (%s, %s, NOW())", (regiao, texto))
+    conn.commit()
+    cur.close()
+    conn.close()
 
+    return jsonify({"sucesso": True, "regiao": regiao, "observacao": texto})
+
+# -------------------- Endpoint dados --------------------
+@app.route("/dados")
+def dados():
+    return jsonify({"status": status_regioes, "observacoes": observacoes})
+
+# -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
