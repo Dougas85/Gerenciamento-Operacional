@@ -314,6 +314,91 @@ function atualizarCardsPorLado(ladoSelecionado){
                     keyboard: true 
                 });
                 modal.show();
+        /* --------------------- Listeners principais --------------------- */
+    document.getElementById("lado").addEventListener("change", function(){
+        const lado = this.value;
+        atualizarCardsPorLado(lado);
+    });
+    
+    document.getElementById("selecionarTodosBtn").addEventListener("click", function(){
+        document.querySelectorAll("#cardsContainer input[type='checkbox']").forEach(cb=>{
+            if(!cb.disabled) cb.checked = true;
+        });
+    });
+    
+    document.getElementById("salvarObs").addEventListener("click", function(){
+        const texto = document.getElementById("obsTexto").value;
+        if(!regiaoSelecionada) return;
+        observacoes[regiaoSelecionada] = texto;
+    
+        // atualiza popup do marcador se existir
+        if(marcadores[regiaoSelecionada]){
+            const estilo = corMarcador(status[regiaoSelecionada] || "verde");
+            let popupTexto = `<b>${regiaoSelecionada}</b><br>Status: ${status[regiaoSelecionada] || 'verde'}<br><i>${texto}</i>`;
+            if(status[regiaoSelecionada] === "amarelo" || status[regiaoSelecionada] === "vermelho"){
+                popupTexto += `<br><b>Dia sem entrega:</b> ${dataAtual}`;
+            }
+            marcadores[regiaoSelecionada].bindPopup(popupTexto).setStyle({color:estilo.cor, fillColor:estilo.cor, fillOpacity:estilo.opacidade});
+        }
+    
+        // grava no servidor
+        fetch("/salvar_obs", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ regiao: regiaoSelecionada, obs: texto })
+        }).then(resp => resp.json())
+          .then(data => {
+              // atualiza visual local
+              document.querySelector(`#cardsContainer label[data-regiao='${regiaoSelecionada}']`).atualizarPulsar();
+              atualizarPainelResumo();
+          })
+          .catch(err => console.error(err));
+    
+        bootstrap.Modal.getInstance(document.getElementById("obsModal")).hide();
+    });
+    
+    /* --------------------- Form submit (atualizar entregas) --------------------- */
+    document.getElementById("form-regioes").addEventListener("submit", function(e){
+        e.preventDefault();
+    
+        if(ladoBloqueado){
+            alert("Atualização já realizada hoje para este lado. Apenas observações podem ser alteradas.");
+            return;
+        }
+    
+        const form = e.currentTarget;
+        const formData = new FormData(form);
+    
+        // atualizar status local antes do envio (para visual imediato)
+        const atendidas = formData.getAll("atendidas");
+        const lado = formData.get("lado");
+        for(const regiao in todasRegioes){
+            if(!regiao.endsWith(lado)) continue;
+            if(atendidas.includes(regiao)) status[regiao] = "verde";
+            else {
+                if(status[regiao] === "verde") status[regiao] = "amarelo";
+                else if(status[regiao] === "amarelo") status[regiao] = "vermelho";
+            }
+        }
+        // atualiza cards e marcadores locais
+        atualizarCardsPorLado(lado);
+        criarMarcadores();
+        atualizarPainelResumo();
+    
+        // envia ao backend
+        fetch("/", { method: "POST", body: formData })
+            .then(async resp => {
+                if(resp.ok){
+                    // sucesso: recarrega página para pegar estado definitivo do backend (e mensagens)
+                    location.reload();
+                } else {
+                    // tenta mostrar erro do backend
+                    let j;
+                    try { j = await resp.json(); }
+                    catch(e){ j = { erro: "Erro ao atualizar" }; }
+                    alert(j.erro || j.error || "Não foi possível atualizar.");
+                }
+            })
 
             } catch(err){
                 console.error("Erro ao abrir modal:", err);
@@ -331,6 +416,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
