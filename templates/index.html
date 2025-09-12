@@ -79,25 +79,31 @@
     <p>&copy; 2025 DFS. Todos os direitos reservados.</p>
 </footer>
 
-<!-- Modal Observações -->
+<!-- Modal -->
 <div class="modal fade" id="obsModal" tabindex="-1" aria-labelledby="obsModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Observações - <span id="modalRegiao"></span></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content shadow-lg rounded-3">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="obsModalLabel">Região: <span id="modalRegiao"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
       </div>
       <div class="modal-body">
-        <textarea id="obsTexto" class="form-control" rows="4" placeholder="Digite observações aqui..."></textarea>
-        <div id="sugestoesAuxilio" class="mt-2 text-muted" style="white-space: pre-line;"></div>
+        <label for="obsTexto" class="form-label fw-bold">Observações</label>
+        <textarea id="obsTexto" class="form-control" rows="4"></textarea>
+
+        <div class="mt-3">
+          <h6 class="fw-bold text-danger">Sugestões de auxílio</h6>
+          <pre id="sugestoesAuxilio" class="bg-light p-2 rounded"></pre>
+        </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="salvarObs">Salvar</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn btn-success" id="salvarObs">Salvar</button>
       </div>
     </div>
   </div>
 </div>
+
 
 <script>
 /* --------------------- Dados iniciais passados pelo Flask --------------------- */
@@ -287,30 +293,35 @@ function atualizarCardsPorLado(ladoSelecionado){
         };
         label.atualizarPulsar();
 
-        // modal ao clicar no card (cuidado: se clicar no input não abre)
-        label.addEventListener("click", (e)=>{
-            if(e.target.tagName === "INPUT") return;
-            regiaoSelecionada = regiao;
-            document.getElementById("modalRegiao").textContent = regiao;
-            document.getElementById("obsTexto").value = observacoes[regiao] || "";
+// modal ao clicar no card (cuidado: se clicar no input não abre)
+label.addEventListener("click", (e)=>{
+    if(e.target.tagName === "INPUT") return;
+    regiaoSelecionada = regiao;
+    document.getElementById("modalRegiao").textContent = regiao;
+    document.getElementById("obsTexto").value = observacoes[regiao] || "";
 
-            // sugestões se vermelho
-            if(status[regiao] === "vermelho"){
-                const sugestoes = sugerirAuxilio(regiao);
-                if(sugestoes.length){
-                    let texto = "Sugestões de auxílio (mais próximas):\n";
-                    sugestoes.forEach(s => texto += `- ${s.regiao} (${s.dist.toFixed(2)} km)\n`);
-                    document.getElementById("sugestoesAuxilio").textContent = texto;
-                } else {
-                    document.getElementById("sugestoesAuxilio").textContent = "";
-                }
-            } else {
-                document.getElementById("sugestoesAuxilio").textContent = "";
-            }
-            new bootstrap.Modal(document.getElementById("obsModal")).show();
-        });
+    // sugestões se vermelho
+    if(status[regiao] === "vermelho"){
+        const sugestoes = sugerirAuxilio(regiao);
+        if(sugestoes.length){
+            let texto = "Sugestões de auxílio (mais próximas):\n";
+            sugestoes.forEach(s => texto += `- ${s.regiao} (${s.dist.toFixed(2)} km)\n`);
+            document.getElementById("sugestoesAuxilio").textContent = texto;
+        } else {
+            document.getElementById("sugestoesAuxilio").textContent = "";
+        }
+    } else {
+        document.getElementById("sugestoesAuxilio").textContent = "";
     }
-}
+
+    // abre modal com fade-in
+    const modal = new bootstrap.Modal(document.getElementById("obsModal"), { 
+        backdrop: "static",
+        keyboard: true 
+    });
+    modal.show();
+});
+
 
 /* --------------------- Listeners principais --------------------- */
 document.getElementById("lado").addEventListener("change", function(){
@@ -411,5 +422,6 @@ atualizarPainelResumo();
 </script>
 </body>
 </html>
+
 
 
