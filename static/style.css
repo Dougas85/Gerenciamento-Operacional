@@ -185,4 +185,14 @@ button.btn-secondary:hover {
     border-radius: 8px;
     resize: none;
 }
+.modal.fade .modal-dialog {
+  transform: translate(0, -20px);
+  transition: all 0.3s ease-out;
+}
+
+.modal.show .modal-dialog {
+  transform: translate(0, 0);
+}
+
+
 
