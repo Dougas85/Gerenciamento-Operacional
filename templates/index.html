@@ -300,19 +300,28 @@ label.addEventListener("click", (e)=>{
     document.getElementById("modalRegiao").textContent = regiao;
     document.getElementById("obsTexto").value = observacoes[regiao] || "";
 
-    // sugestões se vermelho
-    if(status[regiao] === "vermelho"){
-        const sugestoes = sugerirAuxilio(regiao);
-        if(sugestoes.length){
-            let texto = "Sugestões de auxílio (mais próximas):\n";
-            sugestoes.forEach(s => texto += `- ${s.regiao} (${s.dist.toFixed(2)} km)\n`);
-            document.getElementById("sugestoesAuxilio").textContent = texto;
-        } else {
-            document.getElementById("sugestoesAuxilio").textContent = "";
-        }
+if(status[regiao] === "vermelho"){
+    let sugestoes = [];
+    try {
+        sugestoes = sugerirAuxilio(regiao) || [];
+    } catch(e){
+        console.error("Erro ao calcular sugestões:", e);
+    }
+
+    if(sugestoes.length){
+        let texto = "Sugestões de auxílio (mais próximas):\n";
+        sugestoes.forEach(s => {
+            if(s.regiao && typeof s.dist === "number"){
+                texto += `- ${s.regiao} (${s.dist.toFixed(2)} km)\n`;
+            }
+        });
+        document.getElementById("sugestoesAuxilio").textContent = texto;
     } else {
         document.getElementById("sugestoesAuxilio").textContent = "";
     }
+} else {
+    document.getElementById("sugestoesAuxilio").textContent = "";
+}
 
     // abre modal com fade-in
     const modal = new bootstrap.Modal(document.getElementById("obsModal"), { 
@@ -422,6 +431,7 @@ atualizarPainelResumo();
 </script>
 </body>
 </html>
+
 
 
 
