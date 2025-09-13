@@ -318,6 +318,8 @@ function atualizarCardsPorLado(ladoSelecionado){
                 console.error("Erro ao abrir modal:", err);
             }
         });
+    }
+}
         /* --------------------- Listeners principais --------------------- */
     document.getElementById("lado").addEventListener("change", function(){
         const lado = this.value;
@@ -404,12 +406,7 @@ function atualizarCardsPorLado(ladoSelecionado){
                 }
             })
 
-            } catch(err){
-                console.error("Erro ao abrir modal:", err);
-            }
-        });
-    }
-}
+    });
 
 /* --------------------- Inicialização --------------------- */
 criarMarcadores();
@@ -420,6 +417,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
