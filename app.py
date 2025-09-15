@@ -132,6 +132,7 @@ def index():
 
                 # limite de ausentes
                 limite_ausentes = primeira_tentativa * 0.065
+                limite_maximo = limite_ausentes
                
 
                 # cálculo previsto do EPTC
@@ -222,6 +223,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
