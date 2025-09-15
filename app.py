@@ -130,7 +130,7 @@ def index():
                 primeira_tentativa = total_objetos * 0.82
 
                 # limite de ausentes
-                limite_ausentes = primeira_tentativa * 0.935
+                limite_ausentes = primeira_tentativa * 0.065
                 limite_maximo = primeira_tentativa - limite_ausentes
 
                 # cálculo previsto do EPTC
@@ -221,6 +221,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
