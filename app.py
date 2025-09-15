@@ -91,11 +91,22 @@ def index():
     lado_bloqueado = False
     lado = None  # 🔹 inicializa a variável
 
+    # Variáveis do cálculo do EPTC
+    eptc_estimado = None
+    primeira_tentativa = None
+    limite_ausentes = None
+    limite_maximo = None
+
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     # Última atualização
-    cur.execute("SELECT lado, DATE(data_registro) as dia FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
+    cur.execute("""
+        SELECT lado, DATE(data_registro) as dia 
+        FROM lado_atualizacao 
+        ORDER BY data_registro DESC 
+        LIMIT 1
+    """)
     ultimo = cur.fetchone()
 
     # Determina o lado sugerido
@@ -109,33 +120,58 @@ def index():
         lado_bloqueado = True
 
     if request.method == "POST":
-        lado = request.form.get("lado")
-        atendidas = request.form.getlist("atendidas")
+        # 🔹 Caso 1: Cálculo do EPTC
+        if "calcular_eptc" in request.form:
+            try:
+                total_objetos = int(request.form.get("total_objetos", 0))
+                ausentes = int(request.form.get("ausentes", 0))
 
-        if lado_bloqueado:
-            mensagem = f"O lado {lado_sugerido} já foi atualizado em {hoje.strftime('%d/%m/%Y')}."
+                # 1ª tentativa
+                primeira_tentativa = total_objetos * 0.82
+
+                # limite de ausentes
+                limite_ausentes = primeira_tentativa * 0.935
+                limite_maximo = primeira_tentativa - limite_ausentes
+
+                # cálculo previsto do EPTC
+                ausentes_ajustados = ausentes * 0.587
+                eptc_estimado = 100 - (ausentes_ajustados / limite_ausentes * 100)
+
+            except ValueError:
+                mensagem = "Por favor, insira números válidos."
+
+        # 🔹 Caso 2: Atualização de lado A/B
         else:
-            for regiao in [r for r in regioes if r.endswith(lado)]:
-                if regiao in atendidas:
-                    status_regioes[regiao] = "verde"
-                else:
-                    if status_regioes[regiao] == "verde":
-                        status_regioes[regiao] = "amarelo"
-                    elif status_regioes[regiao] == "amarelo":
-                        status_regioes[regiao] = "vermelho"
-                        cur.execute(
-                            "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
-                            (regiao, hoje, "Sem entrega registrada")
-                        )
+            lado = request.form.get("lado")
+            atendidas = request.form.getlist("atendidas")
+
+            if lado_bloqueado:
+                mensagem = f"O lado {lado_sugerido} já foi atualizado em {hoje.strftime('%d/%m/%Y')}."
+            else:
+                for regiao in [r for r in regioes if r.endswith(lado)]:
+                    if regiao in atendidas:
+                        status_regioes[regiao] = "verde"
+                    else:
+                        if status_regioes[regiao] == "verde":
+                            status_regioes[regiao] = "amarelo"
+                        elif status_regioes[regiao] == "amarelo":
+                            status_regioes[regiao] = "vermelho"
+                            cur.execute(
+                                "INSERT INTO regioes_nao_entrega (regiao, data_nao_entrega, motivo) VALUES (%s, %s, %s)",
+                                (regiao, hoje, "Sem entrega registrada")
+                            )
+
+                    cur.execute(
+                        "INSERT INTO regioes_status (regiao, status, data_registro) VALUES (%s, %s, NOW())",
+                        (regiao, status_regioes[regiao])
+                    )
 
                 cur.execute(
-                    "INSERT INTO regioes_status (regiao, status, data_registro) VALUES (%s, %s, NOW())",
-                    (regiao, status_regioes[regiao])
+                    "INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())",
+                    (lado,)
                 )
-
-            cur.execute("INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())", (lado,))
-            conn.commit()
-            mensagem = f"Distribuição registrada para lado {lado} em {hoje.strftime('%d/%m/%Y')}."
+                conn.commit()
+                mensagem = f"Distribuição registrada para lado {lado} em {hoje.strftime('%d/%m/%Y')}."
 
     cur.close()
     conn.close()
@@ -149,10 +185,15 @@ def index():
         status=status_regioes,
         observacoes=observacoes,
         data=datetime.now().strftime("%d/%m/%Y"),
-        lado=lado,  # agora pode ser None se for GET
+        lado=lado,  # pode ser None se for GET
         lado_bloqueado=lado_bloqueado,
         mensagem=mensagem,
-        lado_sugerido=lado_sugerido  # 🔹 corrigi aqui também
+        lado_sugerido=lado_sugerido,
+        # 🔹 Variáveis do EPTC
+        eptc_estimado=eptc_estimado,
+        primeira_tentativa=primeira_tentativa,
+        limite_ausentes=limite_ausentes,
+        limite_maximo=limite_maximo
     )
 
 # -------------------- Salvar observação --------------------
@@ -180,5 +221,6 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
