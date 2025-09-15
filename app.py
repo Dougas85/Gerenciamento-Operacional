@@ -84,7 +84,6 @@ def carregar_dados():
 # Carregar logo ao iniciar
 carregar_dados()
 
-# -------------------- Rota principal --------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
     hoje = date.today()
@@ -98,15 +97,23 @@ def index():
     cur.execute("SELECT lado, DATE(data_registro) as dia FROM lado_atualizacao ORDER BY data_registro DESC LIMIT 1")
     ultimo = cur.fetchone()
 
+    # Determina o lado sugerido
+    if ultimo and ultimo["dia"] < hoje:
+        lado_sugerido = "B" if ultimo["lado"] == "A" else "A"
+    else:
+        lado_sugerido = ultimo["lado"] if ultimo else "A"
+
+    # Verifica se o lado sugerido já foi atualizado hoje
+    if ultimo and ultimo["dia"] == hoje and ultimo["lado"] == lado_sugerido:
+        lado_bloqueado = True
+
     if request.method == "POST":
         lado = request.form.get("lado")
         atendidas = request.form.getlist("atendidas")
 
-        if ultimo and ultimo["dia"] == hoje:
-            lado_bloqueado = True
-            mensagem = f"O lado {ultimo['lado']} já foi atualizado em {hoje.strftime('%d/%m/%Y')}."
+        if lado_bloqueado:
+            mensagem = f"O lado {lado_sugerido} já foi atualizado em {hoje.strftime('%d/%m/%Y')}."
         else:
-            # Atualiza status das regiões
             for regiao in [r for r in regioes if r.endswith(lado)]:
                 if regiao in atendidas:
                     status_regioes[regiao] = "verde"
@@ -120,28 +127,19 @@ def index():
                             (regiao, hoje, "Sem entrega registrada")
                         )
 
-                # Persistir status no banco
                 cur.execute(
                     "INSERT INTO regioes_status (regiao, status, data_registro) VALUES (%s, %s, NOW())",
                     (regiao, status_regioes[regiao])
                 )
 
-            # Registrar lado atualizado
             cur.execute("INSERT INTO lado_atualizacao (lado, data_registro) VALUES (%s, NOW())", (lado,))
             conn.commit()
             mensagem = f"Distribuição registrada para lado {lado} em {hoje.strftime('%d/%m/%Y')}."
 
-    else:  # GET
-        if ultimo and ultimo["dia"] < hoje:
-            lado = "B" if ultimo["lado"] == "A" else "A"
-        else:
-            lado = "A"
-
     cur.close()
     conn.close()
 
-    # Apenas mostrar as regiões do lado atual
-    regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado)}
+    regioes_filtradas = {r: regioes[r] for r in regioes if r.endswith(lado_sugerido)}
 
     return render_template(
         "index.html",
@@ -181,3 +179,4 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
