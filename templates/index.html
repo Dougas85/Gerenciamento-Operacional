@@ -44,7 +44,7 @@
             </div>
         </form>
         <!-- Resultado -->
-        {% if eptc_estimado %}
+        {% if eptc_estimado > 0 %}
         <div class="alert alert-info mt-3 mb-0">
             <strong>📊 EPTC Previsto:</strong> {{ "%.2f"|format(eptc_estimado) }}% |
             <strong>🔄 Limite Ausentes:</strong> {{ "%.2f"|format(limite_maximo) }} |
@@ -459,6 +459,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
