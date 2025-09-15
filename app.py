@@ -96,6 +96,7 @@ def index():
     primeira_tentativa = None
     limite_ausentes = None
     limite_maximo = None
+    ausentes_ajustados = None
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -221,6 +222,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
