@@ -48,7 +48,7 @@
         <div class="alert alert-info mt-3 mb-0">
             <strong>📊 EPTC Previsto:</strong> {{ "%.2f"|format(eptc_estimado) }}% |
             <strong>🔄 Limite Ausentes:</strong> {{ "%.2f"|format(limite_maximo) }} |
-            <strong>🎯 1ª Tentativa:</strong> {{ "%.2f"|format(primeira_tentativa) }}
+            <strong>🎯 1ª Tentativa:</strong> {{ "%.2f"|format(ausentes_ajustados) }}
         </div>
         {% endif %}
     </div>
@@ -459,6 +459,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
