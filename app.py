@@ -89,6 +89,7 @@ def index():
     hoje = date.today()
     mensagem = None
     lado_bloqueado = False
+    lado = None  # 🔹 inicializa a variável
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -148,10 +149,10 @@ def index():
         status=status_regioes,
         observacoes=observacoes,
         data=datetime.now().strftime("%d/%m/%Y"),
-        lado=lado,
+        lado=lado,  # agora pode ser None se for GET
         lado_bloqueado=lado_bloqueado,
         mensagem=mensagem,
-        lado_sugerido=lado
+        lado_sugerido=lado_sugerido  # 🔹 corrigi aqui também
     )
 
 # -------------------- Salvar observação --------------------
@@ -179,4 +180,5 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
