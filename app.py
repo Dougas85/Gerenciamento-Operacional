@@ -192,7 +192,7 @@ def index():
         # 🔹 Variáveis do EPTC
         eptc_estimado=eptc_estimado,
         primeira_tentativa=primeira_tentativa,
-        limite_ausentes=limite_ausentes,
+        ausentes_ajustados=ausentes_ajustados,
         limite_maximo=limite_maximo
     )
 
@@ -221,6 +221,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
