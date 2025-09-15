@@ -18,6 +18,38 @@
     <div class="container text-center">
         <h1 class="mb-1">GERAI</h1>
         <img src="{{ url_for('static', filename='envelope.png') }}" alt="Logo" class="logo-header" style="height:48px">
+
+        <!-- Formulário EPTC -->
+        <form method="POST" class="row g-2 justify-content-center mt-3">
+            <div class="col-auto">
+                <label for="total_objetos" class="col-form-label">Qtd. Objetos:</label>
+            </div>
+            <div class="col-auto">
+                <input type="number" name="total_objetos" id="total_objetos" class="form-control" required>
+            </div>
+
+            <div class="col-auto">
+                <label for="ausentes" class="col-form-label">Ausentes até o momento:</label>
+            </div>
+            <div class="col-auto">
+                <input type="number" name="ausentes" id="ausentes" class="form-control" required>
+            </div>
+
+            <div class="col-auto">
+                <button type="submit" class="btn btn-warning fw-semibold">
+                    <i class="bi bi-calculator"></i> Calcular EPTC
+                </button>
+            </div>
+        </form>
+
+        <!-- Resultado -->
+        {% if eptc_resultado %}
+        <div class="alert alert-info mt-3 mb-0">
+            <strong>📊 EPTC Previsto:</strong> {{ eptc_resultado }}% |
+            <strong>🔄 Limite Ausentes:</strong> {{ limite_ausentes }} |
+            <strong>🎯 1ª Tentativa:</strong> {{ primeira_tentativa }}
+        </div>
+        {% endif %}
     </div>
 </header>
 
@@ -426,6 +458,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
