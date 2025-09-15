@@ -131,11 +131,11 @@ def index():
 
                 # limite de ausentes
                 limite_ausentes = primeira_tentativa * 0.065
-                limite_maximo = primeira_tentativa - limite_ausentes
+                limite_maximo = limite_ausentes
 
                 # cálculo previsto do EPTC
                 ausentes_ajustados = ausentes * 0.587
-                eptc_estimado = 100 - (ausentes_ajustados / limite_ausentes * 100)
+                eptc_estimado = 100 - (ausentes_ajustados / primeira_tentativa * 100)
 
             except ValueError:
                 mensagem = "Por favor, insira números válidos."
@@ -221,6 +221,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
