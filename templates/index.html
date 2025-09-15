@@ -41,10 +41,19 @@
     {% endif %}
 
     {% if mensagem %}
-    <div class="alert alert-success text-center fw-semibold">
-        {{ mensagem }}
-    </div>
+      {% if "já foi atualizado" in mensagem %}
+        <div class="alert alert-warning alert-dismissible fade show mt-3" role="alert">
+          <strong>⚠ Atenção!</strong> {{ mensagem }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% else %}
+        <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
+          <strong>✔ Sucesso!</strong> {{ mensagem }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endif %}
     {% endif %}
+
 
     <!-- Formulário único -->
     <form method="POST" id="form-regioes" class="mb-4">
@@ -417,6 +426,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
