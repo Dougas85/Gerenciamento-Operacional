@@ -63,8 +63,12 @@ def carregar_dados():
     for row in cur.fetchall():
         observacoes[row["regiao"]] = row["observacao"]
 
-    # Status das regiões
-    cur.execute("SELECT regiao, status FROM regioes_status ORDER BY data_registro DESC")
+    # Status das regiões (último registro por região)
+    cur.execute("""
+    SELECT DISTINCT ON (regiao) regiao, status
+    FROM regioes_status
+    ORDER BY regiao, data_registro DESC
+    """)
     for row in cur.fetchall():
         status_regioes[row["regiao"]] = row["status"]
 
@@ -225,6 +229,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
