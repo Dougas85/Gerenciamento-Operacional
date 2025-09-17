@@ -91,6 +91,8 @@ def index():
     lado_bloqueado = False
     lado = None  # 🔹 inicializa a variável
 
+    carregar_dados()
+
     # Variáveis do cálculo do EPTC
     eptc_estimado = 0.0
     primeira_tentativa = 0.0
@@ -223,6 +225,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
