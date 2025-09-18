@@ -59,7 +59,11 @@ def carregar_dados():
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     # Observações
-    cur.execute("SELECT regiao, observacao FROM regioes_obs ORDER BY data_registro DESC")
+    cur.execute("""
+        SELECT DISTINCT ON (regiao) regiao, observacao
+        FROM regioes_obs
+        ORDER BY regiao,  data_registro DESC
+    """)
     for row in cur.fetchall():
         observacoes[row["regiao"]] = row["observacao"]
 
@@ -229,6 +233,7 @@ def dados():
 # -------------------- Main --------------------
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
