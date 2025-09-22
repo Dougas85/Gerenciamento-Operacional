@@ -368,11 +368,13 @@ function atualizarCardsPorLado(ladoSelecionado){
         atualizarCardsPorLado(lado);
     });
     
-    document.getElementById("selecionarTodosBtn").addEventListener("click", function(){
-        document.querySelectorAll("#cardsContainer input[type='checkbox']").forEach(cb=>{
-            if(!cb.disabled) cb.checked = true;
-        });
+   document.getElementById("selecionarTodosBtn").addEventListener("click", function(){
+        const checkboxes = document.querySelectorAll("#cardsContainer input[type='checkbox']:not(:disabled)");
+        const algumDesmarcado = Array.from(checkboxes).some(cb => !cb.checked);
+    
+        checkboxes.forEach(cb => cb.checked = algumDesmarcado);
     });
+
     
     document.getElementById("salvarObs").addEventListener("click", function(){
         const texto = document.getElementById("obsTexto").value;
@@ -459,6 +461,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
