@@ -118,10 +118,11 @@
     
     async function carregarClima() {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${CLIMA.lat}&longitude=${CLIMA.lon}&current_weather=true&hourly=precipitation_probability,temperature_2m,precipitation&forecast_days=1&timezone=${encodeURIComponent(CLIMA.timezone)}`;
+    
       try {
         const resp = await fetch(url);
         const data = await resp.json();
-        if (!data || !data.current_weather) return;
+        if (!data || !data.current_weather) { console.warn("API clima sem current_weather"); return; }
     
         const cw = data.current_weather;
         const temp = cw.temperature;
@@ -129,118 +130,106 @@
         const code = cw.weathercode;
         const horaAtualISO = cw.time; // ex: "2025-11-15T14:00"
     
-        // 1) probabilidade (procura índice alinhado)
-        let prob = null;
-        if (data.hourly && Array.isArray(data.hourly.time) && Array.isArray(data.hourly.precipitation_probability)) {
-          const idx = data.hourly.time.indexOf(horaAtualISO);
-          const pVal = (idx >= 0) ? data.hourly.precipitation_probability[idx] : data.hourly.precipitation_probability[0];
-          prob = (typeof pVal === 'number') ? pVal : null;
+        // obter arrays horários da API
+        const times = (data.hourly && Array.isArray(data.hourly.time)) ? data.hourly.time : [];
+        const temps = (data.hourly && Array.isArray(data.hourly.temperature_2m)) ? data.hourly.temperature_2m : [];
+        const probs = (data.hourly && Array.isArray(data.hourly.precipitation_probability)) ? data.hourly.precipitation_probability : [];
+        const precips = (data.hourly && Array.isArray(data.hourly.precipitation)) ? data.hourly.precipitation : [];
+    
+        // procura índice alinhado; se não achar, usaremos comparação por timestamp
+        let startIndex = -1;
+        const now = Date.now();
+    
+        for (let i = 0; i < times.length; i++) {
+          const tms = Date.parse(times[i]); // times are local since we requested timezone param
+          if (!isNaN(tms) && tms > now) { startIndex = i; break; }
+        }
+        if (startIndex === -1) {
+          // fallback: pegar o índice do current_weather se presente no array horário
+          const idxHora = times.indexOf(horaAtualISO);
+          startIndex = idxHora >= 0 ? idxHora + 1 : 0;
         }
     
-        // 2) precipitação em mm (hourly.precipitation) - para saber se já está chovendo
-        let precip_mm = null;
-        if (data.hourly && Array.isArray(data.hourly.time) && Array.isArray(data.hourly.precipitation)) {
-          const idx2 = data.hourly.time.indexOf(horaAtualISO);
-          const prVal = (idx2 >= 0) ? data.hourly.precipitation[idx2] : data.hourly.precipitation[0];
-          precip_mm = (typeof prVal === 'number') ? prVal : null;
-        }
-    
+        // detalhes do clima
         const m = mapaWeatherCode(code);
         const card = document.getElementById("climaCard");
         const titulo = document.getElementById("climaTitulo");
         const resumo = document.getElementById("climaResumo");
         const tempEl = document.getElementById("climaTemp");
         const detalhe = document.getElementById("climaDetalhe");
-        const horas = document.getElementById("climaHoras");
+        const horasContainer = document.getElementById("climaHoras");
         const iconEl = document.getElementById("climaIcon");
-        
-        // Ícone
-        iconEl.className = "bi ico-clima " + m.icon;
-        
-        // Título + resumo
+    
+        // atualiza ícone (bootstrap icons) - se não existir, ele só aplica a classe
+        iconEl.className = 'bi ico-clima ' + m.icon;
+    
         resumo.textContent = `${m.cond} • Atualizado: ${horaAtualISO.replace("T"," ")}`;
         tempEl.textContent = `${Math.round(temp)}°C`;
-        
-        // Detalhes
-        let detalheTexto = `Vento: ${Math.round(wind)} km/h`;
-        
-        if (precip_mm !== null && precip_mm > 0.01) {
-            detalheTexto += ` • Chuva: ${precip_mm.toFixed(1)} mm`;
-        } else if (prob !== null) {
-            const pRounded = (prob < 1 && prob > 0) ? "<1%" : Math.round(prob) + "%";
-            detalheTexto += ` • Chuva: ${pRounded}`;
-        } else {
-            detalheTexto += ` • Chuva: --`;
-        }
-        
-        detalhe.textContent = detalheTexto;
-        
-        // ===============================
-        //   PRÓXIMAS 6 HORAS FUTURAS
-        // ===============================
-        horas.innerHTML = '';
-        
-        if (data.hourly && Array.isArray(data.hourly.time)) {
-        
-            const times = data.hourly.time;
-            const temps = data.hourly.temperature_2m || [];
-            const probs = data.hourly.precipitation_probability || [];
-        
-            // Hora atual
-            const agora = new Date();
-            const horaAtual = agora.getHours();
-        
-            // Encontrar o primeiro horário FUTURO
-            let start = times.findIndex(t => {
-                const hora = parseInt(t.split("T")[1].slice(0, 2));
-                return hora > horaAtual;
-            });
-        
-            if (start === -1) start = 0; // fallback caso não encontre
-        
-            // Criar 6 cards de horas futuras
-            for (let i = start; i < Math.min(times.length, start + 6); i++) {
-        
-                const hourLabel = times[i].split("T")[1].slice(0, 5);
-                const t = temps[i] !== undefined ? Math.round(temps[i]) + "°C" : "--";
-                const p = probs[i] !== undefined
-                    ? (probs[i] < 1 && probs[i] > 0 ? "<1%" : Math.round(probs[i]) + "%")
-                    : "--";
-        
-                const div = document.createElement("div");
-                div.className = "text-center p-2 bg-white rounded shadow-sm flex-shrink-0";
-                div.style.minWidth = "110px";
-                div.innerHTML = `
-                    <div class="fw-bold">${hourLabel}</div>
-                    <div class="small">${t}</div>
-                    <div class="small text-muted prob-chuva">Chuva: ${p}</div>
-                `;
-        
-                horas.appendChild(div);
-            }
-        }
-
-
     
-        // tema visual: remove classes antigas e adiciona a atual
+        // precipitação já ocorrendo (mm/h) ou probabilidade
+        let precip_mm = null;
+        if (precips.length && startIndex >= 0 && startIndex - 1 < precips.length && startIndex - 1 >= 0) {
+          precip_mm = precips[startIndex - 1];
+        } else if (precips.length) {
+          precip_mm = precips[0];
+        }
+    
+        let prob = null;
+        if (probs.length && startIndex >= 0 && startIndex - 1 < probs.length && startIndex - 1 >= 0) {
+          prob = probs[startIndex - 1];
+        } else if (probs.length) {
+          prob = probs[0];
+        }
+    
+        let detalheTexto = `Vento: ${Math.round(wind)} km/h`;
+        if (precip_mm !== null && precip_mm > 0.01) {
+          detalheTexto += ` • Chuva: ${precip_mm.toFixed(1)} mm`;
+        } else if (prob !== null) {
+          const pRounded = (prob < 1 && prob > 0) ? '<1%' : Math.round(prob) + '%';
+          detalheTexto += ` • Chuva: ${pRounded}`;
+        } else {
+          detalheTexto += ` • Chuva: --`;
+        }
+        detalhe.textContent = detalheTexto;
+    
+        // preenche próximos 6 horários FUTUROS
+        horasContainer.innerHTML = '';
+        for (let i = startIndex; i < Math.min(times.length, startIndex + 6); i++) {
+          const hourLabel = times[i].split("T")[1].slice(0,5);
+          const t = (temps[i] !== undefined) ? Math.round(temps[i]) + "°C" : "--";
+          const p = (probs[i] !== undefined) ? ((probs[i] < 1 && probs[i] > 0) ? "<1%" : Math.round(probs[i]) + "%") : "--";
+    
+          const div = document.createElement("div");
+          div.className = "text-center p-2 bg-white rounded shadow-sm flex-shrink-0";
+          div.style.minWidth = "110px";
+          div.innerHTML = `
+            <div class="fw-bold">${hourLabel}</div>
+            <div class="small">${t}</div>
+            <div class="small text-muted prob-chuva">Chuva: ${p}</div>
+          `;
+          horasContainer.appendChild(div);
+        }
+    
+        // tema visual: classes usadas para custom css
         document.body.classList.remove('clima-solar','clima-nublado','clima-chuva','clima-tempestade','clima-neblina');
         document.body.classList.add(m.theme);
-        card.className = 'card card-clima p-3 shadow-sm';
         card.style.display = 'block';
     
-        // efeitos visuais: remove efeitos antigos
+        // efeitos visuais: remove anteriores
         const efe = document.getElementById('efeitosClimaContainer');
         efe.innerHTML = '';
     
-        // decide intensidade dos efeitos baseado em precip_mm ou prob
+        // decide intensidade dos efeitos baseado em precip_mm/prob
         if (m.theme === 'clima-chuva') {
-          // se precip >= 1 mm/h -> heavy, senão light
           const intensity = (precip_mm !== null && precip_mm >= 1) ? 'heavy' : 'light';
-          efe.appendChild(createRainLayer(intensity));
+          const layer = createRainLayer(intensity);
+          if (intensity === 'heavy') layer.classList.add('heavy');
+          efe.appendChild(layer);
         }
         if (m.theme === 'clima-tempestade') {
-          // rain + lightning
-          efe.appendChild(createRainLayer('heavy'));
+          const layer = createRainLayer('heavy');
+          layer.classList.add('heavy');
+          efe.appendChild(layer);
           efe.appendChild(createLightning());
         }
     
@@ -248,6 +237,7 @@
         console.error('Erro ao buscar previsão do tempo:', err);
       }
     }
+
     
     /* inicializa e atualiza a cada 15 minutos */
     carregarClima();
@@ -662,6 +652,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
