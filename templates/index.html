@@ -191,23 +191,44 @@
           detalheTexto += ` • Chuva: --`;
         }
         detalhe.textContent = detalheTexto;
-    
-        // preenche próximos  8 horários FUTUROS
+        // ====================
+        // PRÓXIMAS 8 HORAS REAIS
+        // ====================
         horasContainer.innerHTML = '';
+        
+        const agora = new Date();
+        const atualISO = agora.toISOString().slice(0, 13);  // "2025-11-15T16"
+        
+        let startIndex = times.findIndex(t => t.startsWith(atualISO));
+        
+        // se não achar hora exata, achar a próxima
+        if (startIndex === -1) {
+            startIndex = times.findIndex(t => {
+                const [data, hora] = t.split("T");
+                const h = parseInt(hora.slice(0, 2));
+                return h > agora.getHours();
+            });
+        }
+        
+        if (startIndex === -1) startIndex = 0; // fallback total
+        
+        // Agora pega 8 horários futuros, mesmo se cruzar para o dia seguinte
         for (let i = startIndex; i < Math.min(times.length, startIndex + 8); i++) {
-          const hourLabel = times[i].split("T")[1].slice(0,8);
-          const t = (temps[i] !== undefined) ? Math.round(temps[i]) + "°C" : "--";
-          const p = (probs[i] !== undefined) ? ((probs[i] < 1 && probs[i] > 0) ? "<1%" : Math.round(probs[i]) + "%") : "--";
-    
-          const div = document.createElement("div");
-          div.className = "text-center p-2 bg-white rounded shadow-sm flex-shrink-0";
-          div.style.minWidth = "110px";
-          div.innerHTML = `
-            <div class="fw-bold">${hourLabel}</div>
-            <div class="small">${t}</div>
-            <div class="small text-muted prob-chuva">Chuva: ${p}</div>
-          `;
-          horasContainer.appendChild(div);
+            const hourLabel = times[i].split("T")[1].slice(0, 5);
+            const t = temps[i] !== undefined ? Math.round(temps[i]) + "°C" : "--";
+            const p = probs[i] !== undefined
+                ? ((probs[i] < 1 && probs[i] > 0) ? "<1%" : Math.round(probs[i]) + "%")
+                : "--";
+        
+            const div = document.createElement("div");
+            div.className = "text-center p-2 bg-white rounded shadow-sm flex-shrink-0";
+            div.style.minWidth = "110px";
+            div.innerHTML = `
+                <div class="fw-bold">${hourLabel}</div>
+                <div class="small">${t}</div>
+                <div class="small text-muted prob-chuva">Chuva: ${p}</div>
+            `;
+            horasContainer.appendChild(div);
         }
     
         // tema visual: classes usadas para custom css
@@ -652,6 +673,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
