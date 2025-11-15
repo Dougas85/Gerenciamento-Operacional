@@ -192,10 +192,10 @@
         }
         detalhe.textContent = detalheTexto;
     
-        // preenche próximos 6 horários FUTUROS
+        // preenche próximos  8 horários FUTUROS
         horasContainer.innerHTML = '';
         for (let i = startIndex; i < Math.min(times.length, startIndex + 8); i++) {
-          const hourLabel = times[i].split("T")[1].slice(0,5);
+          const hourLabel = times[i].split("T")[1].slice(0,8);
           const t = (temps[i] !== undefined) ? Math.round(temps[i]) + "°C" : "--";
           const p = (probs[i] !== undefined) ? ((probs[i] < 1 && probs[i] > 0) ? "<1%" : Math.round(probs[i]) + "%") : "--";
     
@@ -652,6 +652,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
