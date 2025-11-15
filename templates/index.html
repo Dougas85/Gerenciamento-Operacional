@@ -153,75 +153,72 @@
         const detalhe = document.getElementById("climaDetalhe");
         const horas = document.getElementById("climaHoras");
         const iconEl = document.getElementById("climaIcon");
-    
-        // icone (com fallback se classe inválida)
-        iconEl.className = 'bi ico-clima ' + m.icon;
-    
-        titulo.querySelector('#climaLocal')?.replaceWith?.(document.getElementById('climaLocal') || document.createElement('span'));
-        // conteúdo
+        
+        // Ícone
+        iconEl.className = "bi ico-clima " + m.icon;
+        
+        // Título + resumo
         resumo.textContent = `${m.cond} • Atualizado: ${horaAtualISO.replace("T"," ")}`;
         tempEl.textContent = `${Math.round(temp)}°C`;
-    
-        // detalhe: se precip_mm > 0 mostramos mm; caso contrário mostramos probabilidade arredondada
+        
+        // Detalhes
         let detalheTexto = `Vento: ${Math.round(wind)} km/h`;
+        
         if (precip_mm !== null && precip_mm > 0.01) {
-          detalheTexto += ` • Chuva: ${precip_mm.toFixed(1)} mm`;
+            detalheTexto += ` • Chuva: ${precip_mm.toFixed(1)} mm`;
         } else if (prob !== null) {
-          const pRounded = (prob < 1 && prob > 0) ? '<1%' : (prob === null ? '--' : Math.round(prob) + '%');
-          detalheTexto += ` • Chuva: ${pRounded}`;
+            const pRounded = (prob < 1 && prob > 0) ? "<1%" : Math.round(prob) + "%";
+            detalheTexto += ` • Chuva: ${pRounded}`;
         } else {
-          detalheTexto += ` • Chuva: --`;
+            detalheTexto += ` • Chuva: --`;
         }
+        
         detalhe.textContent = detalheTexto;
-    
-        // Horas: próximas 6 horas (mesma lógica do anterior)
+        
+        // ===============================
+        //   PRÓXIMAS 6 HORAS FUTURAS
+        // ===============================
         horas.innerHTML = '';
+        
         if (data.hourly && Array.isArray(data.hourly.time)) {
-          const times = data.hourly.time;
-          const temps = data.hourly.temperature_2m || [];
-          const probs = data.hourly.precipitation_probability || [];
-          let start = Math.max(0, times.indexOf(horaAtualISO));
-          if (start === -1) start = 0;
-          for (let i = start; i < Math.min(times.length, start + 6); i++){
-            // EXIBIR APENAS OS PRÓXIMOS 6 HORÁRIOS FUTUROS
-            if (times && temps && probs) {
-            
-                const horas = document.getElementById("horasClima");
-                horas.innerHTML = "";
-            
-                // Hora atual
-                const agora = new Date();
-                const horaAtual = agora.getHours();
-            
-                // Encontrar o índice do horário atual na lista da API
-                let startIndex = times.findIndex(t => {
-                    const h = parseInt(t.split("T")[1].slice(0, 2));
-                    return h >= horaAtual;
-                });
-            
-                if (startIndex === -1) startIndex = 0; // fallback
-            
-                // Gerar os próximos 6 horários
-                for (let i = startIndex; i < startIndex + 6 && i < times.length; i++) {
-            
-                    const hourLabel = times[i].split("T")[1].slice(0, 5);
-                    const t = temps[i] !== undefined ? Math.round(temps[i]) + "°C" : "--";
-                    const p = probs[i] !== undefined
-                        ? (probs[i] < 1 && probs[i] > 0 ? "<1%" : Math.round(probs[i]) + "%")
-                        : "--";
-            
-                    const div = document.createElement("div");
-                    div.className = "text-center p-2 bg-white rounded shadow-sm flex-shrink-0";
-                    div.style.minWidth = "110px";
-                    div.innerHTML = `
-                        <div class="fw-bold">${hourLabel}</div>
-                        <div class="small">${t}</div>
-                        <div class="small text-muted prob-chuva">Chuva: ${p}</div>
-                    `;
-            
-                    horas.appendChild(div);
-                }
+        
+            const times = data.hourly.time;
+            const temps = data.hourly.temperature_2m || [];
+            const probs = data.hourly.precipitation_probability || [];
+        
+            // Hora atual
+            const agora = new Date();
+            const horaAtual = agora.getHours();
+        
+            // Encontrar o primeiro horário FUTURO
+            let start = times.findIndex(t => {
+                const hora = parseInt(t.split("T")[1].slice(0, 2));
+                return hora > horaAtual;
+            });
+        
+            if (start === -1) start = 0; // fallback caso não encontre
+        
+            // Criar 6 cards de horas futuras
+            for (let i = start; i < Math.min(times.length, start + 6); i++) {
+        
+                const hourLabel = times[i].split("T")[1].slice(0, 5);
+                const t = temps[i] !== undefined ? Math.round(temps[i]) + "°C" : "--";
+                const p = probs[i] !== undefined
+                    ? (probs[i] < 1 && probs[i] > 0 ? "<1%" : Math.round(probs[i]) + "%")
+                    : "--";
+        
+                const div = document.createElement("div");
+                div.className = "text-center p-2 bg-white rounded shadow-sm flex-shrink-0";
+                div.style.minWidth = "110px";
+                div.innerHTML = `
+                    <div class="fw-bold">${hourLabel}</div>
+                    <div class="small">${t}</div>
+                    <div class="small text-muted prob-chuva">Chuva: ${p}</div>
+                `;
+        
+                horas.appendChild(div);
             }
+        }
 
 
     
@@ -665,6 +662,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
