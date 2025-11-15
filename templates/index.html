@@ -53,6 +53,179 @@
         {% endif %}
     </div>
 </header>
+    <!-- ===========================
+     CARD DE PREVISÃO DO TEMPO (colocar AQUI: abaixo do EPTC e acima da linha "Data atual")
+     Presidente Prudente - SP
+     coords: -22.12583, -51.38889
+     =========================== -->
+    <div class="container my-2" id="climaContainer" style="max-width:980px;">
+      <div id="climaCard" class="card card-clima p-3 shadow-sm" style="display:none;">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <div id="climaTitulo" class="h6 mb-1"><i id="climaIcon" class="bi ico-clima"></i> <span id="climaLocal">Previsão do tempo — Presidente Prudente, SP</span></div>
+            <div id="climaResumo" class="small text-muted">Atualizando...</div>
+          </div>
+          <div class="text-end">
+            <div id="climaTemp" class="fs-3 fw-bold">-- °C</div>
+            <div id="climaDetalhe" class="small">Vento: -- km/h • Chuva: --</div>
+          </div>
+        </div>
+        <hr>
+        <div id="climaHoras" class="d-flex gap-2 overflow-auto"></div>
+      </div>
+    </div>
+    
+    <!-- camadas de efeito (serão criadas pelo JS quando necessário) -->
+    <div id="efeitosClimaContainer"></div>
+    
+    <script>
+    /* CONFIGURAÇÃO DO CLIMA (Pres. Prudente) */
+    const CLIMA = { lat: -22.12583, lon: -51.38889, timezone: "America/Sao_Paulo" };
+    
+    function mapaWeatherCode(code) {
+      if (code === 0) return {cond: "Céu limpo", icon: "bi-brightness-high-fill", theme: "clima-solar"};
+      if ([1,2,3].includes(code)) return {cond: "Parcialmente nublado", icon: "bi-cloud-sun", theme: "clima-nublado"};
+      if ([45,48].includes(code)) return {cond: "Neblina", icon: "bi-cloud-fog", theme: "clima-neblina"};
+      if ([51,53,55,56,57].includes(code)) return {cond: "Chuvisco", icon: "bi-cloud-drizzle", theme: "clima-chuva"};
+      if ([61,63,65,66,67].includes(code)) return {cond: "Chuva", icon: "bi-cloud-rain", theme: "clima-chuva"};
+      if ([80,81,82].includes(code)) return {cond: "Pancadas/Chuva", icon: "bi-cloud-lightning-rain", theme: "clima-chuva"};
+      if ([95,96,99].includes(code)) return {cond: "Trovoadas", icon: "bi-cloud-lightning", theme: "clima-tempestade"};
+      return {cond: "Nublado", icon: "bi-cloud", theme: "clima-nublado"};
+    }
+    
+    function createRainLayer(intensity) {
+      // intensity: "light" | "heavy"
+      const container = document.createElement('div');
+      container.className = 'rain-layer';
+      // cria várias "gotas" com posições aleatórias
+      const count = intensity === 'heavy' ? 36 : 14;
+      for (let i=0;i<count;i++){
+        const s = document.createElement('span');
+        s.style.left = (Math.random()*100) + '%';
+        s.style.animationDuration = (2 + Math.random()*1.4) + 's';
+        s.style.opacity = (0.04 + Math.random()*0.08);
+        s.style.height = (20 + Math.random()*30) + 'vh';
+        container.appendChild(s);
+      }
+      return container;
+    }
+    
+    function createLightning() {
+      const el = document.createElement('div');
+      el.className = 'lightning';
+      return el;
+    }
+    
+    async function carregarClima() {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${CLIMA.lat}&longitude=${CLIMA.lon}&current_weather=true&hourly=precipitation_probability,temperature_2m,precipitation&forecast_days=1&timezone=${encodeURIComponent(CLIMA.timezone)}`;
+      try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (!data || !data.current_weather) return;
+    
+        const cw = data.current_weather;
+        const temp = cw.temperature;
+        const wind = cw.windspeed;
+        const code = cw.weathercode;
+        const horaAtualISO = cw.time; // ex: "2025-11-15T14:00"
+    
+        // 1) probabilidade (procura índice alinhado)
+        let prob = null;
+        if (data.hourly && Array.isArray(data.hourly.time) && Array.isArray(data.hourly.precipitation_probability)) {
+          const idx = data.hourly.time.indexOf(horaAtualISO);
+          const pVal = (idx >= 0) ? data.hourly.precipitation_probability[idx] : data.hourly.precipitation_probability[0];
+          prob = (typeof pVal === 'number') ? pVal : null;
+        }
+    
+        // 2) precipitação em mm (hourly.precipitation) - para saber se já está chovendo
+        let precip_mm = null;
+        if (data.hourly && Array.isArray(data.hourly.time) && Array.isArray(data.hourly.precipitation)) {
+          const idx2 = data.hourly.time.indexOf(horaAtualISO);
+          const prVal = (idx2 >= 0) ? data.hourly.precipitation[idx2] : data.hourly.precipitation[0];
+          precip_mm = (typeof prVal === 'number') ? prVal : null;
+        }
+    
+        const m = mapaWeatherCode(code);
+        const card = document.getElementById("climaCard");
+        const titulo = document.getElementById("climaTitulo");
+        const resumo = document.getElementById("climaResumo");
+        const tempEl = document.getElementById("climaTemp");
+        const detalhe = document.getElementById("climaDetalhe");
+        const horas = document.getElementById("climaHoras");
+        const iconEl = document.getElementById("climaIcon");
+    
+        // icone (com fallback se classe inválida)
+        iconEl.className = 'bi ico-clima ' + m.icon;
+    
+        titulo.querySelector('#climaLocal')?.replaceWith?.(document.getElementById('climaLocal') || document.createElement('span'));
+        // conteúdo
+        resumo.textContent = `${m.cond} • Atualizado: ${horaAtualISO.replace("T"," ")}`;
+        tempEl.textContent = `${Math.round(temp)}°C`;
+    
+        // detalhe: se precip_mm > 0 mostramos mm; caso contrário mostramos probabilidade arredondada
+        let detalheTexto = `Vento: ${Math.round(wind)} km/h`;
+        if (precip_mm !== null && precip_mm > 0.01) {
+          detalheTexto += ` • Chuva: ${precip_mm.toFixed(1)} mm`;
+        } else if (prob !== null) {
+          const pRounded = (prob < 1 && prob > 0) ? '<1%' : (prob === null ? '--' : Math.round(prob) + '%');
+          detalheTexto += ` • Chuva: ${pRounded}`;
+        } else {
+          detalheTexto += ` • Chuva: --`;
+        }
+        detalhe.textContent = detalheTexto;
+    
+        // Horas: próximas 6 horas (mesma lógica do anterior)
+        horas.innerHTML = '';
+        if (data.hourly && Array.isArray(data.hourly.time)) {
+          const times = data.hourly.time;
+          const temps = data.hourly.temperature_2m || [];
+          const probs = data.hourly.precipitation_probability || [];
+          let start = Math.max(0, times.indexOf(horaAtualISO));
+          if (start === -1) start = 0;
+          for (let i = start; i < Math.min(times.length, start + 6); i++){
+            const hourLabel = times[i].split('T')[1].slice(0,5);
+            const t = temps[i] !== undefined ? Math.round(temps[i]) + '°C' : '--';
+            const p = probs[i] !== undefined ? (probs[i] < 1 && probs[i] > 0 ? '<1%' : Math.round(probs[i]) + '%') : '--';
+            const div = document.createElement('div');
+            div.className = 'text-center p-2 bg-white rounded shadow-sm flex-shrink-0';
+            div.style.minWidth = '110px';
+            div.innerHTML = `<div class="fw-bold">${hourLabel}</div><div class="small">${t}</div><div class="small text-muted prob-chuva">Chuva: ${p}</div>`;
+            horas.appendChild(div);
+          }
+        }
+    
+        // tema visual: remove classes antigas e adiciona a atual
+        document.body.classList.remove('clima-solar','clima-nublado','clima-chuva','clima-tempestade','clima-neblina');
+        document.body.classList.add(m.theme);
+        card.className = 'card card-clima p-3 shadow-sm';
+        card.style.display = 'block';
+    
+        // efeitos visuais: remove efeitos antigos
+        const efe = document.getElementById('efeitosClimaContainer');
+        efe.innerHTML = '';
+    
+        // decide intensidade dos efeitos baseado em precip_mm ou prob
+        if (m.theme === 'clima-chuva') {
+          // se precip >= 1 mm/h -> heavy, senão light
+          const intensity = (precip_mm !== null && precip_mm >= 1) ? 'heavy' : 'light';
+          efe.appendChild(createRainLayer(intensity));
+        }
+        if (m.theme === 'clima-tempestade') {
+          // rain + lightning
+          efe.appendChild(createRainLayer('heavy'));
+          efe.appendChild(createLightning());
+        }
+    
+      } catch (err) {
+        console.error('Erro ao buscar previsão do tempo:', err);
+      }
+    }
+    
+    /* inicializa e atualiza a cada 15 minutos */
+    carregarClima();
+    setInterval(carregarClima, 1000 * 60 * 15);
+    </script>
+
 
 <div class="container my-4">
     <p class="text-muted text-center">Data atual: <strong>{{ data }}</strong></p>
@@ -107,94 +280,6 @@
                 <i class="bi bi-arrow-repeat"></i> Atualizar
             </button>
         </div>
-
-    <!-- ====================== PREVISÃO DO TEMPO ====================== -->
-    <div id="weather-card" class="weather-card">
-        <div class="weather-left">
-            <img id="weather-icon" class="weather-icon" src="" alt="Clima">
-        </div>
-    
-        <div class="weather-right">
-            <h3 id="weather-temp">--°C</h3>
-            <p id="weather-description">Carregando...</p>
-            <p id="weather-rain">Chuva: --%</p>
-            <p id="weather-wind">Vento: -- km/h</p>
-            <small id="weather-update">Atualizado agora</small>
-        </div>
-    </div>
-    
-    <script>
-    async function carregarClima() {
-    
-        // Coordenadas de Presidente Prudente - SP
-        const latitude = -22.1200;
-        const longitude = -51.3856;
-    
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m&hourly=precipitation_probability&timezone=America/Sao_Paulo`;
-    
-        try {
-            const resp = await fetch(url);
-            const data = await resp.json();
-    
-            const temp = data.current.temperature_2m;
-            const chuva = data.current.precipitation;
-            const vento = data.current.wind_speed_10m;
-            const weatherCode = data.current.weather_code;
-    
-            const icon = document.getElementById("weather-icon");
-            const tempEl = document.getElementById("weather-temp");
-            const descEl = document.getElementById("weather-description");
-            const rainEl = document.getElementById("weather-rain");
-            const windEl = document.getElementById("weather-wind");
-    
-            tempEl.textContent = `${temp}°C`;
-            rainEl.textContent = `Chuva: ${chuva}%`;
-            windEl.textContent = `Vento: ${vento} km/h`;
-    
-            // ⛅ Tradução simples do WMO code
-            const codigos = {
-                0: "Céu limpo",
-                1: "Poucas nuvens",
-                2: "Parcialmente nublado",
-                3: "Nublado",
-                51: "Garoa",
-                61: "Chuva fraca",
-                63: "Chuva moderada",
-                65: "Chuva forte",
-                95: "Tempestade",
-                99: "Tempestade severa"
-            };
-    
-            descEl.textContent = codigos[weatherCode] ?? "Condição indefinida";
-    
-            // =======================================
-            //        DEFINIR TEMA CONFORME CLIMA
-            // =======================================
-            const body = document.body;
-    
-            body.classList.remove("tema-sol", "tema-nublado", "tema-chuva", "tema-tempestade");
-    
-            if (weatherCode === 0 || weatherCode === 1) body.classList.add("tema-sol");
-            else if (weatherCode === 2 || weatherCode === 3) body.classList.add("tema-nublado");
-            else if (weatherCode >= 61 && weatherCode <= 65) body.classList.add("tema-chuva");
-            else if (weatherCode >= 95) body.classList.add("tema-tempestade");
-    
-            // Ícones simples
-            if (weatherCode === 0) icon.src = "https://img.icons8.com/emoji/96/sun-emoji.png";
-            else if (weatherCode <= 2) icon.src = "https://img.icons8.com/emoji/96/sun-behind-cloud.png";
-            else if (weatherCode == 3) icon.src = "https://img.icons8.com/emoji/96/cloud-emoji.png";
-            else if (weatherCode >= 61 && weatherCode <= 65) icon.src = "https://img.icons8.com/emoji/96/cloud-with-rain.png";
-            else if (weatherCode >= 95) icon.src = "https://img.icons8.com/emoji/96/cloud-with-lightning-and-rain.png";
-    
-        } catch (err) {
-            console.error("Erro ao carregar clima:", err);
-        }
-    }
-    
-    carregarClima();
-    setInterval(carregarClima, 900000); // Atualiza a cada 15 min
-    </script>
-    
 
         <!-- Cards das Regiões (container limpo: preenchido por JS) -->
         <div class="row g-3" id="cardsContainer"></div>
@@ -549,6 +634,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
