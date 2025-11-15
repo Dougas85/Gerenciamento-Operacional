@@ -276,3 +276,75 @@ button.btn-secondary:hover {
 
 /* small visual tweaks para manter o visual profissional */
 #climaCard .bi { vertical-align: middle; }
+
+/* ----- Efeitos clima (rain / heavy rain / lightning) ----- */
+#efeitosClimaContainer { position: fixed; inset: 0; pointer-events: none; z-index: 1050; }
+
+.rain-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1050;
+}
+.rain-layer span {
+  position: absolute;
+  top: -10vh;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
+  transform: skewX(-15deg);
+  opacity: 0.9;
+  animation-name: fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  filter: blur(0.2px);
+}
+@keyframes fall {
+  0% { transform: translateY(-15vh) skewX(-15deg); opacity: 0.15; }
+  80% { opacity: 0.65; }
+  100% { transform: translateY(110vh) skewX(-15deg); opacity: 0.15; }
+}
+
+/* heavy rain makes drops longer and faster */
+.rain-layer.heavy span { width: 3px; background: linear-gradient(180deg, rgba(255,255,255,0.2), rgba(255,255,255,0.06)); }
+
+/* lightning flash */
+.lightning {
+  position: absolute;
+  inset: 0;
+  z-index: 1060;
+  pointer-events:none;
+}
+.lightning::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.0);
+  animation: flash 6s infinite;
+  mix-blend-mode: screen;
+}
+@keyframes flash {
+  0% { background: rgba(255,255,255,0); }
+  3% { background: rgba(255,255,255,0.85); }
+  6% { background: rgba(255,255,255,0); }
+  30% { background: rgba(255,255,255,0); }
+  33% { background: rgba(255,255,255,0.6); }
+  36% { background: rgba(255,255,255,0); }
+  100% { background: rgba(255,255,255,0); }
+}
+
+/* chuvisco (drops menores, mais lentos, sutil) */
+.rain-layer.light span { height: 20vh; opacity: 0.18; animation-duration: 2.8s; }
+
+/* aparência do card clima */
+.card-clima { border-radius: 12px; backdrop-filter: saturate(120%) blur(6px); }
+.card-clima .ico-clima { font-size: 28px; vertical-align: middle; margin-right:8px; }
+
+/* mini-cards horários: mantém contraste em temas escuros */
+#climaHoras .bg-white { background: rgba(255,255,255,0.95); }
+.clima-tempestade #climaHoras .bg-white { background: rgba(255,255,255,0.06); color: #fff; }
+
+/* melhora visual do ícone (bootstrap icons) caso não carregue */
+.ico-clima::before { display:inline-block; width:1.1em; text-align:center; }
+
+
