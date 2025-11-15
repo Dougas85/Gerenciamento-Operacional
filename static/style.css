@@ -194,5 +194,68 @@ button.btn-secondary:hover {
   transform: translate(0, 0);
 }
 
+/* ===================== CARD DE PREVISÃO DO TEMPO ===================== */
+.weather-card {
+    width: 100%;
+    max-width: 480px;
+    margin: 20px auto 30px;
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+    transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+.weather-icon {
+    width: 85px;
+}
+
+.weather-right h3 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.weather-right p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+#weather-update {
+    font-size: 0.75rem;
+    color: #555;
+}
+
+/* ===================== TEMAS DINÂMICOS ===================== */
+
+/* ☀ Dia de sol */
+.tema-sol {
+    background: linear-gradient(180deg, #fff8d1, #fff6a3);
+}
+
+/* 🌥 Nublado */
+.tema-nublado {
+    background: linear-gradient(180deg, #e5e5e5, #cccccc);
+}
+
+/* 🌧 Dia de chuva */
+.tema-chuva {
+    background: linear-gradient(180deg, #c7d0e0, #aab4c4);
+}
+
+/* 🌩 Tempestade */
+.tema-tempestade {
+    background: linear-gradient(180deg, #2f3542, #1e272e);
+    color: white;
+}
+
+.tema-tempestade .weather-card {
+    background: #3b3b3b;
+    color: white;
+}
+
 
 
