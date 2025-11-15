@@ -183,16 +183,47 @@
           let start = Math.max(0, times.indexOf(horaAtualISO));
           if (start === -1) start = 0;
           for (let i = start; i < Math.min(times.length, start + 6); i++){
-            const hourLabel = times[i].split('T')[1].slice(0,5);
-            const t = temps[i] !== undefined ? Math.round(temps[i]) + '°C' : '--';
-            const p = probs[i] !== undefined ? (probs[i] < 1 && probs[i] > 0 ? '<1%' : Math.round(probs[i]) + '%') : '--';
-            const div = document.createElement('div');
-            div.className = 'text-center p-2 bg-white rounded shadow-sm flex-shrink-0';
-            div.style.minWidth = '110px';
-            div.innerHTML = `<div class="fw-bold">${hourLabel}</div><div class="small">${t}</div><div class="small text-muted prob-chuva">Chuva: ${p}</div>`;
-            horas.appendChild(div);
-          }
-        }
+            // EXIBIR APENAS OS PRÓXIMOS 6 HORÁRIOS FUTUROS
+            if (times && temps && probs) {
+            
+                const horas = document.getElementById("horasClima");
+                horas.innerHTML = "";
+            
+                // Hora atual
+                const agora = new Date();
+                const horaAtual = agora.getHours();
+            
+                // Encontrar o índice do horário atual na lista da API
+                let startIndex = times.findIndex(t => {
+                    const h = parseInt(t.split("T")[1].slice(0, 2));
+                    return h >= horaAtual;
+                });
+            
+                if (startIndex === -1) startIndex = 0; // fallback
+            
+                // Gerar os próximos 6 horários
+                for (let i = startIndex; i < startIndex + 6 && i < times.length; i++) {
+            
+                    const hourLabel = times[i].split("T")[1].slice(0, 5);
+                    const t = temps[i] !== undefined ? Math.round(temps[i]) + "°C" : "--";
+                    const p = probs[i] !== undefined
+                        ? (probs[i] < 1 && probs[i] > 0 ? "<1%" : Math.round(probs[i]) + "%")
+                        : "--";
+            
+                    const div = document.createElement("div");
+                    div.className = "text-center p-2 bg-white rounded shadow-sm flex-shrink-0";
+                    div.style.minWidth = "110px";
+                    div.innerHTML = `
+                        <div class="fw-bold">${hourLabel}</div>
+                        <div class="small">${t}</div>
+                        <div class="small text-muted prob-chuva">Chuva: ${p}</div>
+                    `;
+            
+                    horas.appendChild(div);
+                }
+            }
+
+
     
         // tema visual: remove classes antigas e adiciona a atual
         document.body.classList.remove('clima-solar','clima-nublado','clima-chuva','clima-tempestade','clima-neblina');
@@ -634,6 +665,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
