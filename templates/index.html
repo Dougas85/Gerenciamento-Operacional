@@ -108,6 +108,94 @@
             </button>
         </div>
 
+    <!-- ====================== PREVISÃO DO TEMPO ====================== -->
+    <div id="weather-card" class="weather-card">
+        <div class="weather-left">
+            <img id="weather-icon" class="weather-icon" src="" alt="Clima">
+        </div>
+    
+        <div class="weather-right">
+            <h3 id="weather-temp">--°C</h3>
+            <p id="weather-description">Carregando...</p>
+            <p id="weather-rain">Chuva: --%</p>
+            <p id="weather-wind">Vento: -- km/h</p>
+            <small id="weather-update">Atualizado agora</small>
+        </div>
+    </div>
+    
+    <script>
+    async function carregarClima() {
+    
+        // Coordenadas de Presidente Prudente - SP
+        const latitude = -22.1200;
+        const longitude = -51.3856;
+    
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m&hourly=precipitation_probability&timezone=America/Sao_Paulo`;
+    
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+    
+            const temp = data.current.temperature_2m;
+            const chuva = data.current.precipitation;
+            const vento = data.current.wind_speed_10m;
+            const weatherCode = data.current.weather_code;
+    
+            const icon = document.getElementById("weather-icon");
+            const tempEl = document.getElementById("weather-temp");
+            const descEl = document.getElementById("weather-description");
+            const rainEl = document.getElementById("weather-rain");
+            const windEl = document.getElementById("weather-wind");
+    
+            tempEl.textContent = `${temp}°C`;
+            rainEl.textContent = `Chuva: ${chuva}%`;
+            windEl.textContent = `Vento: ${vento} km/h`;
+    
+            // ⛅ Tradução simples do WMO code
+            const codigos = {
+                0: "Céu limpo",
+                1: "Poucas nuvens",
+                2: "Parcialmente nublado",
+                3: "Nublado",
+                51: "Garoa",
+                61: "Chuva fraca",
+                63: "Chuva moderada",
+                65: "Chuva forte",
+                95: "Tempestade",
+                99: "Tempestade severa"
+            };
+    
+            descEl.textContent = codigos[weatherCode] ?? "Condição indefinida";
+    
+            // =======================================
+            //        DEFINIR TEMA CONFORME CLIMA
+            // =======================================
+            const body = document.body;
+    
+            body.classList.remove("tema-sol", "tema-nublado", "tema-chuva", "tema-tempestade");
+    
+            if (weatherCode === 0 || weatherCode === 1) body.classList.add("tema-sol");
+            else if (weatherCode === 2 || weatherCode === 3) body.classList.add("tema-nublado");
+            else if (weatherCode >= 61 && weatherCode <= 65) body.classList.add("tema-chuva");
+            else if (weatherCode >= 95) body.classList.add("tema-tempestade");
+    
+            // Ícones simples
+            if (weatherCode === 0) icon.src = "https://img.icons8.com/emoji/96/sun-emoji.png";
+            else if (weatherCode <= 2) icon.src = "https://img.icons8.com/emoji/96/sun-behind-cloud.png";
+            else if (weatherCode == 3) icon.src = "https://img.icons8.com/emoji/96/cloud-emoji.png";
+            else if (weatherCode >= 61 && weatherCode <= 65) icon.src = "https://img.icons8.com/emoji/96/cloud-with-rain.png";
+            else if (weatherCode >= 95) icon.src = "https://img.icons8.com/emoji/96/cloud-with-lightning-and-rain.png";
+    
+        } catch (err) {
+            console.error("Erro ao carregar clima:", err);
+        }
+    }
+    
+    carregarClima();
+    setInterval(carregarClima, 900000); // Atualiza a cada 15 min
+    </script>
+    
+
         <!-- Cards das Regiões (container limpo: preenchido por JS) -->
         <div class="row g-3" id="cardsContainer"></div>
     </form>
@@ -461,6 +549,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
