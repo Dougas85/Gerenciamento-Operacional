@@ -153,35 +153,48 @@
         // detalhes do clima
         const m = mapaWeatherCode(code);
         const card = document.getElementById("climaCard");
-        const titulo = document.getElementById("climaTitulo");
         const resumo = document.getElementById("climaResumo");
         const tempEl = document.getElementById("climaTemp");
         const detalhe = document.getElementById("climaDetalhe");
         const horasContainer = document.getElementById("climaHoras");
         const iconEl = document.getElementById("climaIcon");
-    
-        // atualiza ícone (bootstrap icons) - se não existir, ele só aplica a classe
+        
+        // ícone
         iconEl.className = 'bi ico-clima ' + m.icon;
-    
+        
+        // texto principal
         resumo.textContent = `${m.cond} • Atualizado: ${horaAtualISO.replace("T"," ")}`;
         tempEl.textContent = `${Math.round(temp)}°C`;
-    
-        // precipitação já ocorrendo (mm/h) ou probabilidade
-        let precip_mm = null;
-        if (precips.length && startIndex >= 0 && startIndex - 1 < precips.length && startIndex - 1 >= 0) {
-          precip_mm = precips[startIndex - 1];
-        } else if (precips.length) {
-          precip_mm = precips[0];
+        
+        // ================================
+        // DEFINIR startIndex PRIMEIRO!!
+        // ================================
+        const agora = new Date();
+        const atualISO = agora.toISOString().slice(0, 13);  // ex: "2025-11-15T16"
+        
+        let startIndex = times.findIndex(t => t.startsWith(atualISO));
+        
+        // se não achar a hora exata, pegar a próxima hora futura
+        if (startIndex === -1) {
+            startIndex = times.findIndex(t => {
+                const h = parseInt(t.split("T")[1].slice(0, 2));
+                return h > agora.getHours();
+            });
         }
-    
-        let prob = null;
-        if (probs.length && startIndex >= 0 && startIndex - 1 < probs.length && startIndex - 1 >= 0) {
-          prob = probs[startIndex - 1];
-        } else if (probs.length) {
-          prob = probs[0];
-        }
-    
+        
+        if (startIndex === -1) startIndex = 0; // fallback
+        
+        // ================================
+        // AGORA SIM: calcular precipitação
+        // ================================
+        let precip_mm = precips[startIndex] ?? precips[0] ?? null;
+        let prob = probs[startIndex] ?? probs[0] ?? null;
+        
+        // ================================
+        // DETALHE DO CARD
+        // ================================
         let detalheTexto = `Vento: ${Math.round(wind)} km/h`;
+        
         if (precip_mm !== null && precip_mm > 0.01) {
           detalheTexto += ` • Chuva: ${precip_mm.toFixed(1)} mm`;
         } else if (prob !== null) {
@@ -190,30 +203,16 @@
         } else {
           detalheTexto += ` • Chuva: --`;
         }
+        
         detalhe.textContent = detalheTexto;
-        // ====================
-        // PRÓXIMAS 8 HORAS REAIS
-        // ====================
+        
+        // ================================
+        // PRÓXIMAS 8 HORAS
+        // ================================
         horasContainer.innerHTML = '';
         
-        const agora = new Date();
-        const atualISO = agora.toISOString().slice(0, 13);  // "2025-11-15T16"
-        
-        let startIndex = times.findIndex(t => t.startsWith(atualISO));
-        
-        // se não achar hora exata, achar a próxima
-        if (startIndex === -1) {
-            startIndex = times.findIndex(t => {
-                const [data, hora] = t.split("T");
-                const h = parseInt(hora.slice(0, 2));
-                return h > agora.getHours();
-            });
-        }
-        
-        if (startIndex === -1) startIndex = 0; // fallback total
-        
-        // Agora pega 8 horários futuros, mesmo se cruzar para o dia seguinte
         for (let i = startIndex; i < Math.min(times.length, startIndex + 8); i++) {
+        
             const hourLabel = times[i].split("T")[1].slice(0, 5);
             const t = temps[i] !== undefined ? Math.round(temps[i]) + "°C" : "--";
             const p = probs[i] !== undefined
@@ -230,29 +229,35 @@
             `;
             horasContainer.appendChild(div);
         }
-    
-        // tema visual: classes usadas para custom css
-        document.body.classList.remove('clima-solar','clima-nublado','clima-chuva','clima-tempestade','clima-neblina');
+        
+        // ================================
+        // MOSTRAR CARD
+        // ================================
+        document.body.classList.remove(
+          'clima-solar','clima-nublado','clima-chuva','clima-tempestade','clima-neblina'
+        );
         document.body.classList.add(m.theme);
+        
         card.style.display = 'block';
-    
-        // efeitos visuais: remove anteriores
+        
+        // ================================
+        // ANIMAÇÕES REALISTAS
+        // ================================
         const efe = document.getElementById('efeitosClimaContainer');
         efe.innerHTML = '';
-    
-        // decide intensidade dos efeitos baseado em precip_mm/prob
+        
         if (m.theme === 'clima-chuva') {
           const intensity = (precip_mm !== null && precip_mm >= 1) ? 'heavy' : 'light';
           const layer = createRainLayer(intensity);
-          if (intensity === 'heavy') layer.classList.add('heavy');
           efe.appendChild(layer);
         }
+        
         if (m.theme === 'clima-tempestade') {
           const layer = createRainLayer('heavy');
-          layer.classList.add('heavy');
           efe.appendChild(layer);
           efe.appendChild(createLightning());
         }
+
     
       } catch (err) {
         console.error('Erro ao buscar previsão do tempo:', err);
@@ -673,6 +678,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
