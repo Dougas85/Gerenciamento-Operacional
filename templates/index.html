@@ -138,18 +138,26 @@
         const probs = data.hourly?.precipitation_probability || [];
         const precips = data.hourly?.precipitation || [];
 
-        // ==============================================
-        // CORREÇÃO: se houver chuva real, forçar weathercode de chuva
-        // ==============================================
-        const indiceAtual = times.indexOf(horaAtualISO);
-        if (indiceAtual !== -1) {
-            const chuvaReal = precips[indiceAtual]; // mm/h
+        // CORREÇÃO ACERTADA: encontrar o horário atual pela HORA (não pela string completa)
+        let indiceAtual = -1;
+        const horaAgora = horaAtualISO.split("T")[1].slice(0, 2); // pega apenas HH
         
-            if (chuvaReal > 0 && ![51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) {
-                console.warn("Corrigindo previsão: chuva detectada pela precipitação.");
-                code = 61; // "Chuva"
+        for (let i = 0; i < times.length; i++) {
+            if (times[i].split("T")[1].slice(0, 2) === horaAgora) {
+                indiceAtual = i;
+                break;
             }
         }
+        
+        // Se achou o índice correto, aplicar a correção real de chuva
+        if (indiceAtual !== -1) {
+            const chuvaReal = precips[indiceAtual];
+            if (chuvaReal > 0 && ![51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) {
+                console.warn("Corrigindo previsão: chuva detectada pela precipitação.");
+                code = 61; // chuva moderada
+            }
+        }
+
         // =================================================
         // CALCULAR startIndex (primeiro horário futuro)
         // =================================================
@@ -664,6 +672,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
