@@ -152,9 +152,18 @@
         // Se achou o índice correto, aplicar a correção real de chuva
         if (indiceAtual !== -1) {
             const chuvaReal = precips[indiceAtual];
-            if (chuvaReal > 0 && ![51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) {
-                console.warn("Corrigindo previsão: chuva detectada pela precipitação.");
-                code = 61; // chuva moderada
+        
+            if (chuvaReal > 0) {
+                // 🔥 Caso 1: chuva forte (>= 3 mm)
+                if (chuvaReal >= 3) {
+                    console.warn("Forçando chuva forte (>= 3 mm).");
+                    code = 65; // chuva forte
+                }
+                // 🌧 Caso 2: chuva leve/moderada
+                else if (![51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) {
+                    console.warn("Corrigindo previsão: chuva detectada pela precipitação.");
+                    code = 61; // chuva moderada
+                }
             }
         }
 
@@ -672,6 +681,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
