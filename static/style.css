@@ -347,4 +347,70 @@ button.btn-secondary:hover {
 /* melhora visual do ícone (bootstrap icons) caso não carregue */
 .ico-clima::before { display:inline-block; width:1.1em; text-align:center; }
 
+/* Container da chuva (fica sobre o conteúdo) */
+.rain-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 999;
+}
+
+/* Gotas */
+.rain-layer span {
+    position: absolute;
+    display: block;
+    width: 2px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.4);
+    animation: rainFall linear infinite;
+}
+
+/* Níveis de intensidade */
+.rain-layer.leve span {
+    opacity: 0.2;
+}
+
+.rain-layer.moderada span {
+    opacity: 0.35;
+    height: 26px;
+}
+
+.rain-layer.forte span {
+    opacity: 0.5;
+    height: 34px;
+}
+
+/* Animação da chuva */
+@keyframes rainFall {
+    0%   { transform: translateY(-120vh); }
+    100% { transform: translateY(120vh); }
+}
+
+/* Relâmpagos */
+.lightning {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: white;
+    opacity: 0;
+    z-index: 1000;
+    pointer-events: none;
+    animation: flash 3s infinite;
+}
+
+@keyframes flash {
+    0%, 93%, 100% { opacity: 0; }
+    94% { opacity: 0.8; }
+    96% { opacity: 0.1; }
+    98% { opacity: 0.6; }
+}
+
+
+
 
