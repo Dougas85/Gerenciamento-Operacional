@@ -227,6 +227,19 @@
           const p = probs[i] !== undefined
               ? ((probs[i] < 1 && probs[i] > 0) ? "<1%" : Math.round(probs[i]) + "%")
               : "--";
+          // ----- CORREÇÃO BASEADA EM PRECIPITAÇÃO REAL -----
+          let codeHora = data.hourly.weathercode?.[i] ?? null; // código original da API
+          const chuvaHora = precips[i]; // mm/h
+        
+          if (chuvaHora > 2) {
+              console.warn(`Forçando chuva forte (> 2 mm) às ${hourLabel}`);
+              codeHora = 65; // chuva forte
+          } else if (chuvaHora > 0) {
+              console.warn(`Corrigindo para chuva moderada às ${hourLabel}`);
+              codeHora = 61; // chuva moderada
+          }
+          // ---------------------------------------------------
+
     
           const div = document.createElement("div");
           div.className = "text-center p-2 bg-white rounded shadow-sm flex-shrink-0";
@@ -249,20 +262,49 @@
         // =================================================
         // ANIMAÇÕES REALISTAS
         // =================================================
-        const efe = document.getElementById('efeitosClimaContainer');
-        efe.innerHTML = '';
-    
-        if (m.theme === 'clima-chuva') {
-          const intensity = (precip_mm !== null && precip_mm >= 1) ? 'heavy' : 'light';
-          const layer = createRainLayer(intensity); // função que cria divs com chuva realista
-          efe.appendChild(layer);
+        function aplicarEfeitosChuva(mm) {
+            const efeitos = document.getElementById("efeitosClimaContainer");
+            efeitos.innerHTML = ""; // limpa efeitos anteriores
+        
+            if (mm <= 0) return; // sem chuva → sem efeitos
+        
+            // Cria camada de chuva
+            const layer = document.createElement("div");
+            layer.classList.add("rain-layer");
+        
+            // Intensidade
+            let quantidade = 0;
+            if (mm > 0 && mm < 2) {
+                layer.classList.add("leve");   // leve
+                quantidade = 25;
+            } 
+            else if (mm >= 2 && mm < 5) {
+                layer.classList.add("moderada"); // moderada
+                quantidade = 50;
+            }
+            else if (mm >= 5) {
+                layer.classList.add("forte"); // forte
+                quantidade = 90;
+            }
+        
+            // Criar gotas
+            for (let i = 0; i < quantidade; i++) {
+                const drop = document.createElement("span");
+                drop.style.left = Math.random() * 100 + "%";
+                drop.style.animationDuration = (1.5 + Math.random() * 1) + "s";
+                layer.appendChild(drop);
+            }
+        
+            efeitos.appendChild(layer);
+        
+            // Relâmpagos só na chuva forte
+            if (mm >= 5) {
+                const lightning = document.createElement("div");
+                lightning.classList.add("lightning");
+                efeitos.appendChild(lightning);
+            }
         }
-    
-        if (m.theme === 'clima-tempestade') {
-          const layer = createRainLayer('heavy');
-          efe.appendChild(layer);
-          efe.appendChild(createLightning());
-        }
+
     
       } catch (err) {
         console.error('Erro ao buscar previsão do tempo:', err);
@@ -681,6 +723,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
