@@ -129,20 +129,7 @@
         const temp = cw.temperature;
         const wind = cw.windspeed;
         const code = cw.weathercode;
-        const horaAtualISO = cw.time; // ex: "2025-11-15T14:00"
-
-
-        // Forçar chuva se a API estiver indicando precipitação real
-        const indiceAtual = times.indexOf(horaAtualISO);
-        if (indiceAtual !== -1) {
-            const chuvaReal = precips[indiceAtual]; // mm/h
-        
-            // Se estiver chovendo de verdade, mas o weathercode não é de chuva, corrigir
-            if (chuvaReal > 0 && ![51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) {
-                console.warn("Corrigindo previsão: chuva detectada pela precipitação.");
-                code = 61; // 'Chuva'
-            }
-        }
+        const horaAtualISO = cw.time; // ex: "2025-11-15T14:00
 
     
         // Arrays horários da API
@@ -665,6 +652,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
