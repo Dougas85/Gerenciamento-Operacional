@@ -134,7 +134,7 @@ async function carregarClima() {
     const temps = data.hourly?.temperature_2m || [];
     const probs = data.hourly?.precipitation_probability || [];
     const precips = data.hourly?.precipitation || [];
-    const precips_now = Array.isArray(data.hourly?precipitation_nowcast)
+    const precips_now = Array.isArray(data.hourly?.precipitation_nowcast)
                         ? data.hourly.precipitation_nowcast
                         : new Array(times.length).fill(0);
 
@@ -663,6 +663,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
