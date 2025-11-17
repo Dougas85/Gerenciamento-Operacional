@@ -258,6 +258,12 @@
         document.body.classList.remove('clima-solar','clima-nublado','clima-chuva','clima-tempestade','clima-neblina');
         document.body.classList.add(m.theme);
         card.style.display = 'block';
+
+        // =================================================
+        // CHAMAR EFETIVAMENTE OS EFEITOS DE CHUVA
+        // ========
+        aplicarEfeitosChuva(precip_mm);
+
     
         // =================================================
         // ANIMAÇÕES REALISTAS
@@ -723,6 +729,7 @@ atualizarPainelResumo();
 
 </body>
 </html>
+
 
 
 
